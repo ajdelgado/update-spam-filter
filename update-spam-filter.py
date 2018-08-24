@@ -287,9 +287,9 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
     cursor.execute("UPDATE bannedsenders SET banned = 1 WHERE sender = %s;", (REPLYTO,))
     Message("Reply To address already in the database")
     RTID=True
-  cursor.execute ("SELECT id,count FROM bannedsubjects WHERE subject = %s;", (SUBJECT.lower(),))
+  cursor.execute ("SELECT id,count FROM bannedsubjects WHERE subject = %s;", (SUBJECT,))
   if cursor.rowcount<1:
-    cursor.execute("INSERT INTO bannedsubjects ( subject, frommsgid ) VALUES ( %s, %s );", (SUBJECT.lower(),MSGID))
+    cursor.execute("INSERT INTO bannedsubjects ( subject, frommsgid ) VALUES ( %s, %s );", (SUBJECT,MSGID))
     RTID=CONN.insert_id()
   else:
     ROW=cursor.fetchall()[0]

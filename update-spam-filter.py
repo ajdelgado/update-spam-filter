@@ -270,6 +270,7 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
   else:
     cursor.execute("UPDATE bannedservers SET banned = 1 WHERE server = %s;", (ORIGINALMTA,))
     Message("MTA already in the database, banning it again.")
+    MTAID=True
   cursor.execute ("SELECT id FROM bannedsenders WHERE sender = %s;", (RETURNPATH,))
   if cursor.rowcount<1:
     cursor.execute("INSERT INTO bannedsenders ( sender, frommsgid ) VALUES ( %s, %s );", (RETURNPATH.lower(),MSGID))
@@ -277,6 +278,7 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
   else:
     cursor.execute("UPDATE bannedsenders SET banned = 1 WHERE sender = %s;", (RETURNPATH,))
     Message("Return path address already in the database, banning it again.")
+    RPID=True
   cursor.execute ("SELECT id FROM bannedsenders WHERE sender = %s;", (REPLYTO,))
   if cursor.rowcount<1:
     cursor.execute("INSERT INTO bannedsenders ( sender, frommsgid ) VALUES ( %s, %s );", (REPLYTO.lower(),MSGID))
@@ -284,6 +286,7 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
   else:
     cursor.execute("UPDATE bannedsenders SET banned = 1 WHERE sender = %s;", (REPLYTO,))
     Message("Reply To address already in the database")
+    RTID=True
   cursor.execute ("SELECT id,count FROM bannedsubjects WHERE subject = %s;", (SUBJECT.lower(),))
   if cursor.rowcount<1:
     cursor.execute("INSERT INTO bannedsubjects ( subject, frommsgid ) VALUES ( %s, %s );", (SUBJECT.lower(),MSGID))
@@ -292,6 +295,7 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
     ROW=cursor.fetchall()[0]
     cursor.execute("UPDATE bannedsubjects SET count = %s WHERE subject = %s;", (ROW[1]+1, SUBJECT))
     Message("Subject address already in the database, added count to %s" % str(ROW[1]+1))
+    RTID=True
   CONN.commit()
   cursor.close()
   CONN.close()

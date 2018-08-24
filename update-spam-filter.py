@@ -290,7 +290,7 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
     RTID=CONN.insert_id()
   else:
     ROW=cursor.fetchall()[0]
-    cursor.execute("UPDATE bannedsubjects SET count = %s WHERE sender = %s;", (ROW[1]+1,REPLYTO))
+    cursor.execute("UPDATE bannedsubjects SET count = %s WHERE subject = %s;", (ROW[1]+1, SUBJECT))
     Message("Subject address already in the database, added count to %s", ROW[1]+1)
   CONN.commit()
   cursor.close()

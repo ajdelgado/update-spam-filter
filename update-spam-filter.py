@@ -187,7 +187,7 @@ def SendWarning(ORIGINALMTA,MSGID,HEADERS):
       if not AlreadyNotified(ORIGINALMTA,RECIPIENT):
         MESSAGE="Hi,\nThe server %s was added to our spam list because is sending spam messages like the message id %s.\nPlease, check the server and report back in case you would like to remove it from our list.\nYou're receiving this message because you are in the whois record for the domain %s.\nThanks\n\n\nHeaders of the message:%s" % (ORIGINALMTA,MSGID,DOMAIN,HEADERS)
         server = smtplib.SMTP('localhost')
-        server.sendmail(SENDER, RECIPIENT, MESSAGE)
+        server.sendmail(SENDER, RECIPIENT, MESSAGE.decode('utf-8'))
         server.quit()
         SENTWARNINGS += 1
         AddNotification(ORIGINALMTA,RECIPIENT)

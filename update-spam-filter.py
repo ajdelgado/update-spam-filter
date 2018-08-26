@@ -222,11 +222,6 @@ def AddFilterPostfix():
       msgid=EscapeRegExpSymbols(ROW[1])
       sender=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return path spamming %s rule set by message id %s\n" % (OUTPUT,msgid,sender,sender,msgid)
-  CUR.execute ("SELECT sender,frommsgid FROM bannedsenders WHERE banned=1;")
-  for ROW in CUR.fetchall():
-    if ROW[0] != "":
-      msgid=EscapeRegExpSymbols(ROW[1])
-      sender=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n" % (OUTPUT,msgid,sender,sender,msgid)
   Message('Searching for banned subjects...')
   CUR.execute ("SELECT subject,frommsgid FROM bannedsubjects WHERE count>1;")

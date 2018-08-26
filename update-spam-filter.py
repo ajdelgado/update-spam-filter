@@ -491,15 +491,15 @@ else:
       OLDDEBUG=DEBUG
       Message("Error closing connection")
       DEBUG=OLDDEBUG
+  Message('Updating postfix filters.')
+  if AddFilterPostfix() == False:
+    Message("Error adding filters to postfix",True)
 try:
   Message('Disconnecting from the IMAP server.')
   IMAP.logout()
 except:
   Message("Error closing connection",True)
 
-Message('Updating postfix filters.')
-if AddFilterPostfix() == False:
-  Message("Error adding filters to postfix",True)
 Message('%s warnings were sent.' % SENTWARNINGS)
 MESSAGE='From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n%s spam warnings were sent by update-spam-filter.' % (SENDER, SENDER, SENTWARNINGS)
 server = smtplib.SMTP('localhost')

@@ -242,13 +242,13 @@ def AddFilterPostfix():
   FILEH.write("%s" % OUTPUT)
   FILEH.close()
   try:
-    OUTPUT=subprocess.check_output(["/usr/sbin/postmap",POSTFIX_HEADER_CHECK_FILE], stderr=subprocess.STDOUT, shell=False)
+    OUTPUT=subprocess.check_output(["/usr/bin/sudo /usr/sbin/postmap",POSTFIX_HEADER_CHECK_FILE], stderr=subprocess.STDOUT, shell=False)
   except subprocess.CalledProcessError:
     Message(OUTPUT,True)
     Message("Error indexing postfix filter file",True)
     return False
   try:
-    OUTPUT=subprocess.check_output(["/usr/sbin/postfix","reload"],stderr=subprocess.STDOUT, shell=False)
+    OUTPUT=subprocess.check_output(["/usr/bin/sudo /usr/sbin/postfix","reload"],stderr=subprocess.STDOUT, shell=False)
   except subprocess.CalledProcessError:
     Message(OUTPUT,True)
     Message("Error reloading postfix settings",True)

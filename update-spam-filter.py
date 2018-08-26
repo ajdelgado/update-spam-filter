@@ -492,12 +492,12 @@ else:
       Message("Error closing connection")
       DEBUG=OLDDEBUG
 try:
+  Message('Disconnecting from the IMAP server.')
   IMAP.logout()
 except:
-  OLDDEBUG=DEBUG
-  Message("Error closing connection")
-  DEBUG=OLDDEBUG
+  Message("Error closing connection",True)
 
+Message('Updating postfix filters.')
 if AddFilterPostfix() == False:
   Message("Error adding filters to postfix",True)
 Message('%s warnings were sent.' % SENTWARNINGS)

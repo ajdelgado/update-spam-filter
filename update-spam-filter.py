@@ -290,11 +290,12 @@ def AddFiltersDB(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,SUBJECT):
   cursor.execute ("SELECT id,count FROM bannedsubjects WHERE subject = %s;", (SUBJECT,))
   if cursor.rowcount<1:
     cursor.execute("INSERT INTO bannedsubjects ( subject, frommsgid ) VALUES ( %s, %s );", (SUBJECT,MSGID))
+    Message("New spam subject '%s' added to the database." % SUBJECT)
     RTID=CONN.insert_id()
   else:
     ROW=cursor.fetchall()[0]
     cursor.execute("UPDATE bannedsubjects SET count = %s WHERE subject = %s;", (ROW[1]+1, SUBJECT))
-    Message("Subject address already in the database, added count to %s" % str(ROW[1]+1))
+    Message("Subject '%s' address already in the database, added count to %s" % (SUBJECT,str(ROW[1]+1)))
     RTID=True
   CONN.commit()
   cursor.close()

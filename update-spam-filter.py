@@ -208,12 +208,14 @@ def AddFilterPostfix():
   OUTPUT="#Created at %s automatically from %s\n" % (time.strftime("%Y-%m%d %H:%M:%S"),sys.argv[0])
   CONN = MySQLdb.connect (host = DB_SERVER,user = DB_USER,passwd = DB_PASS,db = DB_NAME,charset='utf8',use_unicode=True)
   CUR=CONN.cursor()
+  Message('Searching for banned server...')
   CUR.execute ("SELECT server,frommsgid FROM bannedservers WHERE banned=1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
       msgid=EscapeRegExpSymbols(ROW[1])
       server=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received from server %s rule set by message id %s\n" % (OUTPUT,msgid,server,server,msgid)
+  Message('Searching for banned senders...')
   CUR.execute ("SELECT sender,frommsgid FROM bannedsenders WHERE banned=1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
@@ -226,6 +228,7 @@ def AddFilterPostfix():
       msgid=EscapeRegExpSymbols(ROW[1])
       sender=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n" % (OUTPUT,msgid,sender,sender,msgid)
+  Message('Searching for banned subjects...')
   CUR.execute ("SELECT subject,frommsgid FROM bannedsubjects WHERE count>1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
@@ -233,20 +236,28 @@ def AddFilterPostfix():
       subject=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n" % (OUTPUT,msgid,subject,subject,msgid)
   OUTPUT="%s#End of automatically added data" % OUTPUT
+  Message('Replacing dollar symbol...')
   OUTPUT=OUTPUT.replace('$','$$')
+  Message("Opening file '%s' to output the resulted filter..." % POSTFIX_HEADER_CHECK_FILE)
   try:
     FILEH=open(POSTFIX_HEADER_CHECK_FILE,"w")
   except:
     Message("Error opening filter file to append new filter",True)
     return False
+  Message('Writting to disk...')
+  start=time.time()
   FILEH.write("%s" % OUTPUT)
+  end=time.time()
+  Message('Took %s seconds to write to disk.' % (end-start))
   FILEH.close()
+  Message("Running postmap command on filter's file")
   try:
     OUTPUT=subprocess.check_output(["/usr/bin/sudo","/usr/sbin/postmap",POSTFIX_HEADER_CHECK_FILE], stderr=subprocess.STDOUT, shell=False)
   except subprocess.CalledProcessError:
     Message(OUTPUT,True)
     Message("Error indexing postfix filter file",True)
     return False
+  Message('Reloagind postfix...')
   try:
     OUTPUT=subprocess.check_output(["/usr/bin/sudo","/usr/sbin/postfix","reload"],stderr=subprocess.STDOUT, shell=False)
   except subprocess.CalledProcessError:

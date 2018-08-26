@@ -398,96 +398,99 @@ else:
   SUBJECT=""
   if CSVOUTPUT:
     print("MSGID;ORIGINALMTA;RETURNPATH;REPLYTO;FROM;SUBJECT")
-  IDS=IDATA[0].split()
-  totalmessages=len(IDS)
-  count=0
-  for ID in IDS:
-    count=count+1
-    Message ("Getting headers of message %s (%s/%s)" % (ID,count,totalmessages))
+  if IDATA == b'':
+    Message("No messages match the filter '%s' in the folder '%s'." % (IMAPFILTER,IMAPMAILBOX))
+  else:
+    IDS=IDATA[0].split()
+    totalmessages=len(IDS)
+    count=0
+    for ID in IDS:
+      count=count+1
+      Message ("Getting headers of message %s (%s/%s)" % (ID,count,totalmessages))
+      try:
+        #STATUS,DATA = IMAP.fetch(ID, 'UID (FLAGS BODY[HEADER])')
+        STATUS,DATA = IMAP.fetch(ID, '(FLAGS BODY[HEADER])')
+      except:
+        OLDDEBUG=DEBUG
+        Message("Error fetching messages headers")
+        DEBUG=OLDDEBUG
+        #IMAP.close()
+        #IMAP.logout()
+      #  sys.exit(1)
+      Message("Received. Status: %s Data %s" % (STATUS,DATA))
+      if STATUS == "NO":
+        Message("Error fetching message headers, servers reponse '%s'" % DATA)
+      else:
+        #if IsJunk(DATA):
+        Message("Message flagged as junk mail, processing")
+        HEADERS=DATA[0][1].decode('utf-8') 
+        NEWDATA=HEADERS.replace('\r','').replace('\n ',' ').replace('\n\t',' ')
+        ORIGINALMTA=GetOriginalMTA(NEWDATA)
+        if ORIGINALMTA != "":
+          Message("Located the original server as %s" % ORIGINALMTA)
+          HEADERS=NEWDATA.splitlines()
+          for HEADER in HEADERS:
+            LHEADER=HEADER.split(": ",1)
+            HEADERNAME=LHEADER[0].lower()
+            try:
+              HEADERVALUE=LHEADER[1]
+            except IndexError:
+              HEADERVALUE=""
+            if HEADERNAME=="message-id":
+              MSGID=HEADERVALUE.replace("<","").replace(">","")
+              Message("Located message id as %s" % MSGID)
+            if HEADERNAME=="return-path":
+              RETURNPATHS=GetEmailsFromText(HEADERVALUE)
+              for RETURNPATH in RETURNPATHS:
+                Message("Located message return path as %s" % RETURNPATH)
+            if HEADERNAME=="reply-to":
+              REPLYTOS=GetEmailsFromText(HEADERVALUE)
+              for REPLYTO in REPLYTOS:
+                Message("Located message reply to as %s" % REPLYTO)
+            if HEADERNAME=="from":
+              FROMS=GetEmailsFromText(HEADERVALUE)
+              for FROM in FROMS:
+                Message("Located message sender as %s" % FROM)
+            if HEADERNAME=="subject" and SUBJECT=="":
+              try:
+                DECSUBJECTS=email.header.decode_header(HEADERVALUE)
+              except:
+                DECSUBJECTS=""
+              for DECSUBJECT in DECSUBJECTS:
+                PARTIALSUBJECT,ENCODING=DECSUBJECT
+                if ENCODING == None:
+                  SUBJECT="%s %s" % (SUBJECT,PARTIALSUBJECT)
+                else:
+                  SUBJECT='%s %s' % (SUBJECT, PARTIALSUBJECT.decode(ENCODING,"replace"))
+              try:
+                SUBJECT=SUBJECT.encode("utf8","replace")
+              except UnicodeDecodeError:
+                SUBJECT=SUBJECT.decode('iso-8859-1').encode('utf8','replace')
+              Message("Located message subject as %s" % SUBJECT)
+
+          if CSVOUTPUT:
+            print("%s;%s;%s;%s;%s;%s" % (MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,FROM,SUBJECT.lstrip()))
+          AddFilters(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,HEADERS,SUBJECT)
+        else:
+          Message("Couldn't find the original server")
+        #else:
+        #  Message("The message wasn't marked as junk")
+    for ID in IDS:
+        try:
+          IMAP.store(ID, '+FLAGS', '(\Seen)')
+        except:
+          Message("Error marking message as read",show=True)
+        try:
+          IMAP.store(ID, '+FLAGS', '(\Deleted)')
+        except:
+          Message("Error marking message as deleted",show=True)
+        IMAP.expunge()
     try:
-      #STATUS,DATA = IMAP.fetch(ID, 'UID (FLAGS BODY[HEADER])')
-      STATUS,DATA = IMAP.fetch(ID, '(FLAGS BODY[HEADER])')
+      IMAP.close()
     except:
       OLDDEBUG=DEBUG
-      Message("Error fetching messages headers")
+      Message("Error closing connection")
       DEBUG=OLDDEBUG
-      #IMAP.close()
-      #IMAP.logout()
-    #  sys.exit(1)
-    Message("Received. Status: %s Data %s" % (STATUS,DATA))
-    if STATUS == "NO":
-      Message("Error fetching message headers, servers reponse '%s'" % DATA)
-    else:
-      #if IsJunk(DATA):
-      Message("Message flagged as junk mail, processing")
-      HEADERS=DATA[0][1].decode('utf-8') 
-      NEWDATA=HEADERS.replace('\r','').replace('\n ',' ').replace('\n\t',' ')
-      ORIGINALMTA=GetOriginalMTA(NEWDATA)
-      if ORIGINALMTA != "":
-        Message("Located the original server as %s" % ORIGINALMTA)
-        HEADERS=NEWDATA.splitlines()
-        for HEADER in HEADERS:
-          LHEADER=HEADER.split(": ",1)
-          HEADERNAME=LHEADER[0].lower()
-          try:
-            HEADERVALUE=LHEADER[1]
-          except IndexError:
-            HEADERVALUE=""
-          if HEADERNAME=="message-id":
-            MSGID=HEADERVALUE.replace("<","").replace(">","")
-            Message("Located message id as %s" % MSGID)
-          if HEADERNAME=="return-path":
-            RETURNPATHS=GetEmailsFromText(HEADERVALUE)
-            for RETURNPATH in RETURNPATHS:
-              Message("Located message return path as %s" % RETURNPATH)
-          if HEADERNAME=="reply-to":
-            REPLYTOS=GetEmailsFromText(HEADERVALUE)
-            for REPLYTO in REPLYTOS:
-              Message("Located message reply to as %s" % REPLYTO)
-          if HEADERNAME=="from":
-            FROMS=GetEmailsFromText(HEADERVALUE)
-            for FROM in FROMS:
-              Message("Located message sender as %s" % FROM)
-          if HEADERNAME=="subject" and SUBJECT=="":
-            try:
-              DECSUBJECTS=email.header.decode_header(HEADERVALUE)
-            except:
-              DECSUBJECTS=""
-            for DECSUBJECT in DECSUBJECTS:
-              PARTIALSUBJECT,ENCODING=DECSUBJECT
-              if ENCODING == None:
-                SUBJECT="%s %s" % (SUBJECT,PARTIALSUBJECT)
-              else:
-                SUBJECT='%s %s' % (SUBJECT, PARTIALSUBJECT.decode(ENCODING,"replace"))
-            try:
-              SUBJECT=SUBJECT.encode("utf8","replace")
-            except UnicodeDecodeError:
-              SUBJECT=SUBJECT.decode('iso-8859-1').encode('utf8','replace')
-            Message("Located message subject as %s" % SUBJECT)
-
-        if CSVOUTPUT:
-          print("%s;%s;%s;%s;%s;%s" % (MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,FROM,SUBJECT.lstrip()))
-        AddFilters(MSGID,ORIGINALMTA,RETURNPATH,REPLYTO,HEADERS,SUBJECT)
-      else:
-        Message("Couldn't find the original server")
-      #else:
-      #  Message("The message wasn't marked as junk")
-  for ID in IDS:
-      try:
-        IMAP.store(ID, '+FLAGS', '(\Seen)')
-      except:
-        Message("Error marking message as read",show=True)
-      try:
-        IMAP.store(ID, '+FLAGS', '(\Deleted)')
-      except:
-        Message("Error marking message as deleted",show=True)
-      IMAP.expunge()
-  try:
-    IMAP.close()
-  except:
-    OLDDEBUG=DEBUG
-    Message("Error closing connection")
-    DEBUG=OLDDEBUG
 try:
   IMAP.logout()
 except:

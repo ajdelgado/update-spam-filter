@@ -491,9 +491,9 @@ else:
       OLDDEBUG=DEBUG
       Message("Error closing connection")
       DEBUG=OLDDEBUG
-Message('Updating postfix filters.')
-if AddFilterPostfix() == False:
-  Message("Error adding filters to postfix",True)
+  Message('Updating postfix filters.')
+  if AddFilterPostfix() == False:
+    Message("Error adding filters to postfix",True)
 try:
   Message('Disconnecting from the IMAP server.')
   IMAP.logout()

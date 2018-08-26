@@ -209,13 +209,17 @@ def AddFilterPostfix():
   CONN = MySQLdb.connect (host = DB_SERVER,user = DB_USER,passwd = DB_PASS,db = DB_NAME,charset='utf8',use_unicode=True)
   CUR=CONN.cursor()
   Message('Searching for banned server...')
+  start=time.time()
   CUR.execute ("SELECT server,frommsgid FROM bannedservers WHERE banned=1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
       msgid=EscapeRegExpSymbols(ROW[1])
       server=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received from server %s rule set by message id %s\n" % (OUTPUT,msgid,server,server,msgid)
+  end=time.time()
+  Message('Took %s seconds.' % (end-start))
   Message('Searching for banned senders...')
+  start=time.time()
   CUR.execute ("SELECT sender,frommsgid FROM bannedsenders WHERE banned=1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
@@ -223,7 +227,10 @@ def AddFilterPostfix():
       sender=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return path spamming %s rule set by message id %s\n" % (OUTPUT,msgid,sender,sender,msgid)
       OUTPUT="%s#From message id %s\n/^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n" % (OUTPUT,msgid,sender,sender,msgid)
+  end=time.time()
+  Message('Took %s seconds.' % (end-start))
   Message('Searching for banned subjects...')
+  start=time.time()
   CUR.execute ("SELECT subject,frommsgid FROM bannedsubjects WHERE count>1;")
   for ROW in CUR.fetchall():
     if ROW[0] != "":
@@ -231,6 +238,8 @@ def AddFilterPostfix():
       subject=EscapeRegExpSymbols(ROW[0])
       OUTPUT="%s#From message id %s\n/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n" % (OUTPUT,msgid,subject,subject,msgid)
   OUTPUT="%s#End of automatically added data" % OUTPUT
+  end=time.time()
+  Message('Took %s seconds.' % (end-start))
   Message('Replacing dollar symbol...')
   OUTPUT=OUTPUT.replace('$','$$')
   Message("Opening file '%s' to output the resulted filter..." % POSTFIX_HEADER_CHECK_FILE)

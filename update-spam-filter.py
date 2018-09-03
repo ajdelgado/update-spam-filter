@@ -189,7 +189,7 @@ def GetOriginalMTA(MESSAGE):
 def GetEmailsFromText(TEXT):
     if type(TEXT) == bytes:
         TEXT = TEXT.decode("utf-8")
-    RES = re.findall("<?([a-zA-Z0-9\.\-]*@[a-zA-Z0-9\.\-]{2, }\.[a-zA-Z0-9\.\-_]{2,})>?", TEXT)
+    RES = re.findall("<?([a-zA-Z0-9\.\-]*@[a-zA-Z0-9\.\-]{2,}\.[a-zA-Z0-9\.\-_]{2,})>?", TEXT)
     if RES != None:
         RET = list()
         for email in RES:

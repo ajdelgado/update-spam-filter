@@ -262,7 +262,7 @@ def AddFilterPostfix():
     OUTPUT = "#Created at %s automatically from %s\n" % (time.strftime("%Y-%m%d %H:%M:%S"), sys.argv[0])
     CONN = MySQLdb.connect(host=DB_SERVER,
                            user=DB_USER,
-                           asswd=DB_PASS,
+                           passwd=DB_PASS,
                            db=DB_NAME,
                            charset='utf8',
                            use_unicode=True)

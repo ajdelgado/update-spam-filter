@@ -118,7 +118,7 @@ def ProcessArguments():
         if arg.lower() == "-a" or arg.lower() == "--all-messages":
             Message("Will process all IMAP messages, not only unseen.")
             IMAPFILTER = 'ALL'
-        larg = arg.split(" = ", 1)
+        larg = arg.split("=", 1)
         if len(larg) == 2:
             if larg[0].lower() == "--imap-server":
                 Message("Server will be '%s'" % larg[1])

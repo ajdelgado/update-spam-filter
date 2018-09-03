@@ -98,8 +98,7 @@ def IsExcludeMTA(MTA):
 
 
 def ProcessArguments():
-    global DEBUG, IMAPSERVER, IMAPPORT, IMAPUSER, IMAPPASSWORD, IMAPMAILBOX
-    global SSL, IMAPFILTER
+    global DEBUG, IMAPSERVER, IMAPPORT, IMAPUSER, IMAPPASSWORD, IMAPMAILBOX, SSL, IMAPFILTER, CSVOUTPUT
     for arg in sys.argv:
         if arg == "-h" or arg == "--help" or arg == "-?" or arg == "/?" or arg == "/h" or arg == "/help":
             Usage()

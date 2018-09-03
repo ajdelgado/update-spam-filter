@@ -177,7 +177,7 @@ def IsJunk(MESSAGE):
 
 
 def GetOriginalMTA(MESSAGE):
-    RES = re.finditer("Received: from ([a-zA-Z0-9\.-_+]*\.[a-zA-Z]{2, }) ",
+    RES = re.finditer("Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ",
                       NEWDATA)
     ORIGINALMTA = ""
     for MTA in RES:
@@ -506,7 +506,7 @@ else:
                 HEADERS = DATA[0][1].decode('utf-8')
                 NEWDATA = HEADERS.replace('\r', '').replace('\n ', ' ').replace('\n\t', ' ')
                 ORIGINALMTA = GetOriginalMTA(NEWDATA)
-                if ORIGINALMTA !=    "":
+                if ORIGINALMTA != "":
                     Message("Located the original server as %s" % ORIGINALMTA)
                     HEADERS = NEWDATA.splitlines()
                     for HEADER in HEADERS:

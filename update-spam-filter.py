@@ -19,7 +19,8 @@ import re
 import imaplib
 import email.header
 import MySQLdb
-import chardet
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import subprocess
 import smtplib
 import syslog
@@ -232,10 +233,33 @@ def SendWarning(ORIGINALMTA, MSGID, HEADERS):
             if not AlreadyNotified(ORIGINALMTA, RECIPIENT):
                 if type(RECIPIENT) == bytes:
                     RECIPIENT = RECIPIENT.decode('utf-8')
-                MESSAGE = "Hi, \nThe server %s was added to our spam list because is sending spam messages like the message id %s.\nPlease, check the server and report back in case you would like to remove it from our list.\nYou're receiving this message because you are in the whois record for the domain %s.\nThanks\n\n\nHeaders of the message:%s" % (ORIGINALMTA, MSGID, DOMAIN, HEADERS)
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = "The server %s was added to our spam list" % ORIGINALMTA
+                msg['From'] = SENDER
+                msg['To'] = RECIPIENT
+                msg['Bcc'] = 'gestor@susurrando.com'
+                text = "Hi, \nThe server %s was added to our spam list because is sending spam messages like the message id %s.\nPlease, check the server and report back in case you would like to remove it from our list.\nYou're receiving this message because you are in the whois record for the domain %s.\nThanks\n\n\nHeaders of the message:%s" % (ORIGINALMTA, MSGID, DOMAIN, HEADERS)
+                html = """
+                <HTML><BODY>
+                <P>Hi,</P>
+                <P>The server %s was added to our spam list because is sending
+                spam messages like the message id %s.</P>
+                <P>Please, check the server and report back in case you would
+                like to remove it from our list.</P>
+                <P>You're receiving this message because you are in the
+                whois record for the domain %s.</P>
+                <P>Thanks</P>
+                <P>Headers of the message:</P>
+                <CODE>%s</CODE>
+                </BODY></HTML>
+                """ % (ORIGINALMTA, MSGID, DOMAIN, HEADERS)
+                part1 = MIMEText(text, 'plain')
+                part2 = MIMEText(html, 'html')
+                msg.attach(part1)
+                msg.attach(part2)
                 server = smtplib.SMTP('localhost')
                 Message("Sending email to '%s'" % RECIPIENT)
-                server.sendmail(SENDER, RECIPIENT, MESSAGE.encode('ascii',errors='xmlcharrefreplace'))
+                server.sendmail(SENDER, RECIPIENT, msg.as_string())
                 server.quit()
                 SENTWARNINGS += 1
                 AddNotification(ORIGINALMTA, RECIPIENT)

@@ -214,8 +214,7 @@ You're receiving this message because you are in the whois record for the
 domain %s.
 Thanks
 
-Headers of the message:%s"""
-                % (ORIGINALmta, MSGID, DOMAIN, HEADERS)
+Headers of the message:%s""" % (ORIGINALmta, MSGID, DOMAIN, HEADERS)
                 html = """
 <HTML><BODY>
 <P>Hi,</P>

@@ -286,6 +286,7 @@ spamming %s rule set by message id %s\n""" % (msgid, subject, subject, msgid)
         log.info(OUTPUT, True)
         log.error("Error reloading postfix settings", True)
         return False
+    return True
 
 
 def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):

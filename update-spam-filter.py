@@ -24,7 +24,6 @@ import smtplib
 import logging
 from logging.handlers import SysLogHandler
 import json
-import MySQLdb
 import mysql.connector
 
 

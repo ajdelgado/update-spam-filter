@@ -1,2 +1,2 @@
 python-mysqldb
-mysql.connector
+mysql-connector

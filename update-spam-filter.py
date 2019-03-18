@@ -275,7 +275,7 @@ spamming %s rule set by message id %s\n""" % (msgid, subject, subject, msgid)
         log.info(OUTPUT, True)
         log.error("Error indexing postfix filter file", True)
         return False
-    log.info('Reloagind postfix...')
+    log.info('Reloading postfix...')
     try:
         OUTPUT = subprocess.check_output(["/usr/bin/sudo",
                                           "/usr/sbin/postfix",
@@ -653,11 +653,11 @@ else:
                 try:
                     IMAP.store(ID, '+FLAGS', '(\\Seen)')
                 except:
-                    log.error("Error marking message as read", show=True)
+                    log.error("Error marking message as read")
                 try:
                     IMAP.store(ID, '+FLAGS', '(\\Deleted)')
                 except:
-                    log.error("Error marking message as deleted", show=True)
+                    log.error("Error marking message as deleted")
                 IMAP.expunge()
         try:
             IMAP.close()
@@ -665,12 +665,12 @@ else:
             log.error("Error closing connection")
     log.info('Updating postfix filters.')
     if not add_filter_postfix():
-        log.error("Error adding filters to postfix", True)
+        log.error("Error adding filters to postfix")
 try:
     log.info('Disconnecting from the IMAP server.')
     IMAP.logout()
 except:
-    log.error("Error closing connection", True)
+    log.error("Error closing connection")
 
 log.info('%s warnings were sent.' % count_sent_warnings)
 message = """From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n

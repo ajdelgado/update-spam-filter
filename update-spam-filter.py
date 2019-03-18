@@ -535,7 +535,6 @@ except imaplib.IMAP4.error as e:
     log.error("Error login as '%s@%s:%s'. %s" %
               (config['imapuser'], config['imapserver'],
                config['imapport'], e))
-    IMAP.close()
     sys.exit(1)
 log.info("Selecting mailbox %s..." % config['imapmailbox'])
 try:

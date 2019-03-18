@@ -530,10 +530,10 @@ else:
         sys.exit(1)
 log.info("Identifying as %s..." % config['imapuser'])
 try:
-    IMAP.login(config['imapuser'], config['imappassword'].replace('$', '\$'))
+    IMAP.login(config['imapuser'], config['imappassword'])
 except imaplib.IMAP4.error as e:
-    log.error("Error login as '%s@%s:%s'. %s" %
-              (config['imapuser'], config['imapserver'],
+    log.error("Error login as '%s:%s@%s:%s'. %s" %
+              (config['imapuser'], config['imappassword'], config['imapserver'],
                config['imapport'], e))
     sys.exit(1)
 log.info("Selecting mailbox %s..." % config['imapmailbox'])

@@ -199,8 +199,8 @@ def send_warning(ORIGINALmta, MSGID, HEADERS):
                 if type(RECIPIENT) == bytes:
                     RECIPIENT = RECIPIENT.decode('utf-8')
                 msg = MIMEMultipart('alternative')
-                msg['Subject'] = "The server %s was added to our spam list" %
-                                 ORIGINALmta
+                msg['Subject'] = """The server %s was added to our spam
+                list""" % ORIGINALmta
                 msg['From'] = config['sender']
                 msg['To'] = RECIPIENT
                 msg['Bcc'] = 'gestor@susurrando.com'

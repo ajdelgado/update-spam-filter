@@ -510,7 +510,7 @@ else:
         log.error("Error connecting to '%s:%s'." %
                   (config['imapserver'], config['imapport']))
         sys.exit(1)
-log.info("Identifying...")
+log.info("Identifying as %s..." % config['imapuser'])
 try:
     IMAP.login(config['imapuser'], config['imappassword'])
 except imaplib.IMAP4.error as e:

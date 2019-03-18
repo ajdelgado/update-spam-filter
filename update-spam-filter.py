@@ -494,7 +494,7 @@ if config['imappasswordfile'] is not None:
     with open(config['imappasswordfile'], 'r') as fp:
         imappassword = fp.read()
     if imappassword != "":
-        config['imappassword'] = imappassword
+        config['imappassword'] = imappassword.strip()
         log.debug('IMAP password obtained from password file %s' %
                   config['imappasswordfile'])
 
@@ -502,7 +502,7 @@ if config['dbpassfile'] is not None:
     with open(config['dbpassfile'], 'r') as fp:
         dbpassfile = fp.read()
     if dbpassfile != "":
-        config['dbpass'] = dbpassfile
+        config['dbpass'] = dbpassfile.strip()
         log.debug('Database password obtained from password file %s' %
                   config['dbpassfile'])
 
@@ -533,7 +533,7 @@ try:
     IMAP.login(config['imapuser'], config['imappassword'])
 except imaplib.IMAP4.error as e:
     log.error("Error login as '%s:%s@%s:%s'. %s" %
-              (config['imapuser'], config['imappassword'], config['imapserver'],
+              (config['imapuser'], config['imapserver'],
                config['imapport'], e))
     sys.exit(1)
 log.info("Selecting mailbox %s..." % config['imapmailbox'])

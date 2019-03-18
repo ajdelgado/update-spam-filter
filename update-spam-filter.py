@@ -11,46 +11,87 @@
 #
 # -
 #
-import os
 import sys
-import getpass
 import time
 import re
 import imaplib
 import email.header
-import MySQLdb
+import argparse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import subprocess
 import smtplib
 import logging
-IMAPSERVER = "localhost"
-IMAPPORT = "993"
-IMAPUSER = ""
-IMAPPASSWORD = ""
-IMAPMAILBOX = "INBOX"
-DB_USER = "spam-filter"
-DB_PASS = "buPKcpjnwH7VveaCFHxWrtrY"
-DB_NAME = "mail"
-DB_TABLE = "spamheaders"
-DB_SERVER = "localhost"
-SENDER = "gestor@susurrando.com"
-IMAPFILTER = '(UNSEEN)'
-POSTFIX_HEADER_CHECK_FILE = "/etc/postfix/maps/spam_filter_header_check"
-excluded_mtas = {'gmail.com',
-                'localhost.localdomain', 'msrv.koti.site',
-                'bankinter.bankinter.com', 'smtpi.msn.com',
-                'telefonica.net', 'mta1.susurrando.com',
-                'srv.susurrando.com', 'correo.susurrando.com',
-                'mudito.susurrando.com', 'webmail.susurrando.com',
-                'facebook.com', 'google.com',
-                'vadelma.susurrando.com',
-                'mora.susurrando.com', 'dedi.susurando.com',
-                'vsrv.susurando.com'}
-SSL = False
-DEBUG = 'INFO'
-CSVOUTPUT = False
-SENTWARNINGS = 0
+import json
+import MySQLdb
+
+
+def process_arguments():
+    """Parse command line parameters"""
+    parser = argparse.ArgumentParser(description='Examine messages marked as spam'
+                                     'in an IMAP folder, add mail filters to '
+                                     'similar messages and notify owners of the '
+                                     'mail servers used.')
+    parser.add_argument('--excluded-mta', dest='excluded_mtas', action='append',
+                        help='Mail Transport Agent to exclude '
+                        '(usually does you trust)')
+    parser.add_argument('--sender', dest='sender',
+                        default='gestor@susurrando.com',
+                        help='From email for notifications to spammy servers.')
+    parser.add_argument('--imap-filter', dest='imapfilter',
+                        default='(UNSEEN)',
+                        help='Filter to find messages in the IMAP server.')
+    parser.add_argument('--postfix-header-check-file', dest='postfixheadercheckfile',
+                        default='/etc/postfix/maps/spam_filter_header_check',
+                        help='File to store mail filters for postfix '
+                        '(Should be declared in /etc/postfix/main.cf in '
+                        'the header_checks parameter)')
+    parser.add_argument('--debug', dest='debug', default='WARNING',
+                        help='Set debug level (CRITICAL, '
+                        'ERROR, WARNING, INFO, DEBUG, NOTSET)')
+    parser.add_argument('--csv', dest='csv',
+                        default=False,
+                        help='Output to CSV format')
+    parser.add_argument('--imap-server', dest='imapserver',
+                        default='localhost',
+                        help='IMAP server to get spam messages.')
+    parser.add_argument('--imap-port', dest='imapport',
+                        default='993',
+                        help='IMAP port of the server.')
+    parser.add_argument('--imap-password', dest='imappassword',
+                        help='Password of the IMAP user.')
+    parser.add_argument('--imap-user', dest='imapuser',
+                        help='IMAP user name.')
+    parser.add_argument('--imap-password-file', dest='imappasswordfile',
+                        help='File containing the IMAP user\'s password')
+    parser.add_argument('--imap-mailbox', dest='imapmailbox',
+                        default="INBOX",
+                        help='IMAP mailbox (folder) where spam messages are '
+                        'located.')
+    parser.add_argument('--ssl', dest='ssl',
+                        default=False,
+                        help='Use an SSL connection to IMAP.')
+    parser.add_argument('--configfile', dest='configfile',
+                        help='Config file to overwrite parameters '
+                        'from the command line')
+    parser.add_argument('--db-user', dest='dbuser',
+                        help='Database user name.')
+    parser.add_argument('--db-pass', dest='dbpass',
+                        help='Database user\'s password.')
+    parser.add_argument('--db-name', dest='dbname',
+                        default='mail',
+                        help='Database name.')
+    parser.add_argument('--db-table', dest='dbtable',
+                        default='spamheaders',
+                        help='Database user name.')
+    parser.add_argument('--db-server', dest='dbserver',
+                        default='localhost',
+                        help='Database server.')
+    args = parser.parse_args()
+    config = vars(args)
+    if config['configfile'] is not None:
+        configfile = json.load(open(config['configfile'], 'r'))
+        config = {**config, **configfile}
 
 
 def escape_regexp_symbols(text):
@@ -84,80 +125,6 @@ def is_excluded_mta(mta):
         if re.search(emta, mta) is not None:
             return True
     return False
-
-
-def process_arguments():
-    """Process the passed arguments"""
-    global DEBUG, IMAPSERVER, IMAPPORT, IMAPUSER, IMAPPASSWORD, IMAPMAILBOX, SSL, IMAPFILTER, CSVOUTPUT
-    for arg in sys.argv:
-        if arg == "-h" or arg == "--help" or arg == "-?" or arg == "/?" or arg == "/h" or arg == "/help":
-            usage()
-            sys.exit(0)
-        if arg == "-d" or arg == "--debug":
-            DEBUG = DEBUG+1
-            log.info("Debug level incressed")
-        if arg.lower() == "--ssl":
-            log.info("Will use SSL")
-            SSL = True
-        if arg.lower() == "-s":
-            log.info("Will use SSL")
-            SSL = True
-        if arg.lower() == "-c" or arg.lower() == "--csv":
-            log.info("Will output as CSV format")
-            CSVOUTPUT = True
-        if arg.lower() == "-a" or arg.lower() == "--all-messages":
-            log.info("Will process all IMAP messages, not only unseen.")
-            IMAPFILTER = 'ALL'
-        larg = arg.split("=", 1)
-        if len(larg) == 2:
-            if larg[0].lower() == "--imap-server":
-                log.info("Server will be '%s'" % larg[1])
-                IMAPSERVER = larg[1]
-            if larg[0].lower() == "--imap-port":
-                log.info("Port will be '%s'" % larg[1])
-                IMAPPORT = larg[1]
-            if larg[0].lower() == "--imap-user":
-                log.info("User will be '%s'" % larg[1])
-                IMAPUSER = larg[1]
-            if larg[0].lower() == "--imap-password":
-                if larg[1] != "":
-                    log.info("Password is set")
-                IMAPPASSWORD = larg[1]
-            if larg[0].lower() == "--imap-mailbox":
-                log.info("Mailbox will be '%s'" % larg[1])
-                IMAPMAILBOX = larg[1]
-            if larg[0].lower() == "--imap-password-file":
-                log.info("Reading password from file '%s'" % larg[1])
-                if os.path.exists(larg[1]):
-                    FILE = open(larg[1], "r")
-                    IMAPPASSWORD = FILE.readline().replace("\n", "").replace("\r", "")
-                    FILE.close()
-                else:
-                    log.info("The password file '%s' doesn't exists" % larg[1])
-                    sys.exit(65)
-    if IMAPPASSWORD == "":
-        IMAPPASSWORD = getpass.getpass("Password for '%s@%s:%s': " %
-                                       (IMAPUSER, IMAPSERVER, IMAPPORT))
-    if IMAPSERVER == "":
-        log.info("You must indicate a server to connecto to")
-        usage()
-        sys.exit(65)
-    if IMAPUSER == "":
-        log.info("You must indicate a username")
-        usage()
-        sys.exit(65)
-    if IMAPMAILBOX == "":
-        log.info("You must indicate a mailbox in the server")
-        usage()
-        sys.exit(65)
-
-
-def usage():
-    """Show the usage of the script"""
-    print("%s [-h] [-d] [--csv] [--imap-server = IMAPSERVER --imap-port = IMAPPORT --imap-user = IMAPUSER --imap-password = IMAPPASSWORD --imap-password-file = IMAPPASSWORDFILE --imap-mailbox = IMAPMAILBOX] [--ssl|-s]" % sys.argv[0])
-    print("\t--csv | -c\tOutput information of mail messages as CSV format")
-    print("\t--help | -h\tShow this help")
-    print("\t--debug | -d\tShow extra debug information")
 
 
 def is_junk(message):
@@ -217,7 +184,7 @@ def get_whois_mails(DOMAIN):
 
 def send_warning(ORIGINALmta, MSGID, HEADERS):
     """Send a warning to an email related to a domain with the spam message"""
-    global SENDER, SENTWARNINGS
+    global SENDER, count_sent_warnings
     amta = ORIGINALmta.split(".")
     DOMAIN = amta[len(amta)-2]+"."+amta[len(amta)-1]
     RECIPIENTS = get_whois_mails(DOMAIN)
@@ -257,7 +224,7 @@ def send_warning(ORIGINALmta, MSGID, HEADERS):
                 log.info("Sending email to '%s'" % RECIPIENT)
                 server.sendmail(SENDER, RECIPIENT, msg.as_string())
                 server.quit()
-                SENTWARNINGS += 1
+                count_sent_warnings += 1
                 add_notification(ORIGINALmta, RECIPIENT)
                 log.info("Sent warning mail to %s regarding domain %s for the mta %s" % (RECIPIENT, DOMAIN, ORIGINALmta))
 
@@ -439,6 +406,7 @@ def add_notification(mta, MAIL):
     CONN.close()
     return RTID
 
+count_sent_warnings = 0
 starttime = time.time()
 log = logging.getLogger()
 log.setLevel(logging.getLevelName('DEBUG'))
@@ -515,7 +483,7 @@ else:
     REPLYTO = ""
     RETURNPATH = ""
     SUBJECT = ""
-    if CSVOUTPUT:
+    if csv:
         print("MSGID;ORIGINALmta;RETURNPATH;REPLYTO;FROM;SUBJECT")
     if IDATA == b'':
         log.info("No messages match the filter '%s' in the folder '%s'." % (IMAPFILTER, IMAPMAILBOX))
@@ -587,7 +555,7 @@ else:
                                 SUBJECT = SUBJECT.decode('iso-8859-1').encode('utf8', 'replace')
                             log.info("Located message subject as %s" % SUBJECT)
 
-                    if CSVOUTPUT:
+                    if csv:
                         print("%s;%s;%s;%s;%s;%s" % (MSGID, ORIGINALmta, RETURNPATH, REPLYTO, FROM, SUBJECT.lstrip()))
                     add_filters(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, HEADERS, SUBJECT)
                 else:
@@ -619,8 +587,8 @@ try:
 except:
     log.info("Error closing connection", True)
 
-log.info('%s warnings were sent.' % SENTWARNINGS)
-message = 'From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n%s spam warnings were sent by update-spam-filter.' % (SENDER, SENDER, SENTWARNINGS)
+log.info('%s warnings were sent.' % count_sent_warnings)
+message = 'From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n%s spam warnings were sent by update-spam-filter.' % (SENDER, SENDER, count_sent_warnings)
 server = smtplib.SMTP('localhost')
 server.sendmail(SENDER, SENDER, message)
 server.quit()

@@ -488,6 +488,12 @@ if config['configfile'] is not None:
     configfile = json.load(open(config['configfile'], 'r'))
     config = {**config, **configfile}
 
+if config['imappasswordfile'] is not None:
+    with open(config['imappasswordfile'], 'r') as fp:
+        imappassword = fp.read()
+    if imappassword != "":
+        config['imappassword'] = imappassword
+
 log.setLevel(logging.getLevelName(config['debug']))
 
 if config['ssl']:

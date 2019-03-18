@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # This script is licensed under GNU GPL version 2.0 or above
@@ -37,21 +37,15 @@ DB_SERVER = "localhost"
 SENDER = "gestor@susurrando.com"
 IMAPFILTER = '(UNSEEN)'
 POSTFIX_HEADER_CHECK_FILE = "/etc/postfix/maps/spam_filter_header_check"
-EXCLUDE_MTAS = {"gmail.com",
-                "localhost.localdomain",
-                "msrv.koti.site",
-                "bankinter.bankinter.com",
-                "smtpi.msn.com",
-                "telefonica.net",
-                "mta1.susurrando.com",
-                "srv.susurrando.com",
-                "correo.susurrando.com",
-                "mudito.susurrando.com",
-                "webmail.susurrando.com",
-                "facebook.com",
-                "google.com",
-                "vadelma.susurrando.com",
-                "mora.susurrando.com"}
+EXCLUDE_MTAS = {'gmail.com', 'localhost.localdomain', 'msrv.koti.site',
+                'bankinter.bankinter.com', 'smtpi.msn.com',
+                'telefonica.net', 'mta1.susurrando.com',
+                'srv.susurrando.com', 'correo.susurrando.com',
+                'mudito.susurrando.com', 'webmail.susurrando.com',
+                'facebook.com', 'google.com',
+                'vadelma.susurrando.com',
+                'mora.susurrando.com', 'dedi.susurando.com',
+                'vsrv.susurando.com'}
 SSL = False
 DEBUG = 0
 CSVOUTPUT = False

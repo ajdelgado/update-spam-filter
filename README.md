@@ -8,7 +8,7 @@ to mark as spam future messages.
 1. Get pip:
 ```bash
 apt install python3-pip # Ubuntu/Debian
-yum install python3-pip # Red Hat/Fedora
+yum install python34-setuptools # CentOS
 wget -O https://bootstrap.pypa.io/get-pip.py |sudo python3 - # But this might mess with a pip installed with your system package manager
 ```
 2. Install requirements:

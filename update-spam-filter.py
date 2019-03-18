@@ -493,6 +493,8 @@ if config['imappasswordfile'] is not None:
         imappassword = fp.read()
     if imappassword != "":
         config['imappassword'] = imappassword
+        log.debug('IMAP password obtained from password file %s' %
+                  config['imappasswordfile'])
 
 log.setLevel(logging.getLevelName(config['debug']))
 

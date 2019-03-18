@@ -472,7 +472,9 @@ parser.add_argument('--configfile', dest='configfile',
 parser.add_argument('--db-user', dest='dbuser',
                     help='Database user name.')
 parser.add_argument('--db-pass', dest='dbpass',
-                    help='Database user\'s password.')
+                    help='(NOT RECOMMENDED) Database user\'s password.')
+parser.add_argument('--db-pass-file', dest='dbpassfile',
+                    help='File containing the database user\'s password.')
 parser.add_argument('--db-name', dest='dbname',
                     default='mail',
                     help='Database name.')
@@ -495,6 +497,14 @@ if config['imappasswordfile'] is not None:
         config['imappassword'] = imappassword
         log.debug('IMAP password obtained from password file %s' %
                   config['imappasswordfile'])
+
+if config['dbpassfile'] is not None:
+    with open(config['dbpassfile'], 'r') as fp:
+        dbpassfile = fp.read()
+    if dbpassfile != "":
+        config['dbpassfile'] = dbpassfile
+        log.debug('Database password obtained from password file %s' %
+                  config['dbpassfile'])
 
 log.setLevel(logging.getLevelName(config['debug']))
 

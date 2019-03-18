@@ -25,6 +25,7 @@ import logging
 from logging.handlers import SysLogHandler
 import json
 import MySQLdb
+import mysql.connector
 
 
 def escape_regexp_symbols(text):
@@ -192,12 +193,12 @@ def add_filter_postfix():
     """Add filters to the postfix configuration file"""
     OUTPUT = """#Created at %s automatically from
 %s\n""" % (time.strftime("%Y-%m%d %H:%M:%S"), sys.argv[0])
-    CONN = MySQLdb.connect(host=config['dbserver'],
-                           user=config['dbuser'],
-                           passwd=config['dbpass'],
-                           db=config['dbname'],
-                           charset='utf8',
-                           use_unicode=True)
+    CONN = mysql.connector.connect(host=config['dbserver'],
+                                   user=config['dbuser'],
+                                   passwd=config['dbpass'],
+                                   db=config['dbname'],
+                                   charset='utf8',
+                                   use_unicode=True)
     CUR = CONN.cursor()
     log.info('Searching for banned server...')
     start = time.time()
@@ -292,23 +293,19 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
     mtaID = False
     RPID = False
     RTID = False
-    CONN = MySQLdb.connect(host=config['dbserver'],
-                           user=config['dbuser'],
-                           passwd=config['dbpass'],
-                           db=config['dbname'],
-                           charset='utf8',
-                           use_unicode=True)
-    MSGID = CONN.escape_string(MSGID)
-    ORIGINALmta = CONN.escape_string(ORIGINALmta)
-    RETURNPATH = CONN.escape_string(RETURNPATH)
-    REPLYTO = CONN.escape_string(REPLYTO)
+    CONN = mysql.connector.connect(host=config['dbserver'],
+                                   user=config['dbuser'],
+                                   passwd=config['dbpass'],
+                                   db=config['dbname'],
+                                   charset='utf8',
+                                   use_unicode=True)
     cursor = CONN.cursor()
     cursor.execute("SELECT id FROM bannedservers"
                    "WHERE server = %s;", ORIGINALmta)
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s);", (ORIGINALmta, MSGID))
-        mtaID = CONN.insert_id()
+        mtaID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "
                        "WHERE server = %s;", (ORIGINALmta, ))
@@ -319,7 +316,7 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
                        "VALUES (%s, %s);", (RETURNPATH.lower(), MSGID))
-        RPID = CONN.insert_id()
+        RPID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
                        "WHERE sender = %s;", (RETURNPATH, ))
@@ -331,7 +328,7 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
                        "VALUES (%s, %s);", (REPLYTO.lower(), MSGID))
-        RTID = CONN.insert_id()
+        RTID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
                        "WHERE sender = %s;", (REPLYTO, ))
@@ -343,7 +340,7 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
         cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
                        "VALUES (%s, %s);", (SUBJECT, MSGID))
         log.info("New spam subject '%s' added to the database." % SUBJECT)
-        RTID = CONN.insert_id()
+        RTID = CONN.lastrowid
     else:
         ROW = cursor.fetchall()[0]
         cursor.execute("UPDATE bannedsubjects SET count = %s "
@@ -401,7 +398,7 @@ def add_notification(mta, MAIL):
     mta_MAIL = '%s_%s' % (mta, MAIL)
     CUR.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
                 (mta_MAIL, ))
-    RTID = CONN.insert_id()
+    RTID = CONN.lastrowid
     CONN.commit()
     CUR.close()
     CONN.close()

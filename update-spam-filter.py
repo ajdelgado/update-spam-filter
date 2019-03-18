@@ -502,7 +502,7 @@ if config['dbpassfile'] is not None:
     with open(config['dbpassfile'], 'r') as fp:
         dbpassfile = fp.read()
     if dbpassfile != "":
-        config['dbpassfile'] = dbpassfile
+        config['dbpass'] = dbpassfile
         log.debug('Database password obtained from password file %s' %
                   config['dbpassfile'])
 

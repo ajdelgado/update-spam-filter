@@ -118,6 +118,7 @@ def get_whois_mails(DOMAIN):
 
 def send_warning(original_mta, msg_id, HEADERS):
     """Send a warning to an email related to a domain with the spam message"""
+    global count_sent_warnings
     amta = original_mta.split(".")
     DOMAIN = amta[len(amta)-2]+"."+amta[len(amta)-1]
     RECIPIENTS = get_whois_mails(DOMAIN)

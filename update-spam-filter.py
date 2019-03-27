@@ -308,7 +308,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES ( %s, %s )",
-                       params=(original_mta, msg_id))
+                       params=(original_mta, msg_id,))
         mtaID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "

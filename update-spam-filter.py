@@ -390,19 +390,17 @@ def add_notification(mta, MAIL):
     """Add the notification of an owner to the database"""
     log.info("Adding that we sent a notification to %s regarding "
              "%s" % (MAIL, mta))
-    CONN = MySQLdb.connect(host=config['dbserver'],
-                           user=config['dbuser'],
-                           passwd=config['dbpass'],
-                           db=config['dbname'],
-                           charset='utf8',
-                           use_unicode=True)
-    mta = CONN.escape_string(mta)
-    MAIL = CONN.escape_string(MAIL)
-    CUR = CONN.cursor()
+    CONN = mysql.connector.connect(host=config['dbserver'],
+                                   user=config['dbuser'],
+                                   passwd=config['dbpass'],
+                                   db=config['dbname'],
+                                   charset='utf8',
+                                   use_unicode=True)
+    CUR = CONN.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
     CUR.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
                 (mta_MAIL, ))
-    RTID = CONN.lastrowid
+    RTID = cursor.lastrowid
     CONN.commit()
     CUR.close()
     CONN.close()

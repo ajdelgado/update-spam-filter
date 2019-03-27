@@ -199,12 +199,12 @@ def add_filter_postfix():
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    CUR = CONN.cursor()
+    cursor = CONN.cursor()
     log.info('Searching for banned server...')
     start = time.time()
-    CUR.execute("""SELECT server, frommsgid
+    cursor.execute("""SELECT server, frommsgid
                 FROM bannedservers WHERE banned = 1;""")
-    for ROW in CUR.fetchall():
+    for ROW in cursor.fetchall():
         if ROW[0] != "":
             msgid = escape_regexp_symbols(ROW[1])
             server = escape_regexp_symbols(ROW[0])
@@ -215,9 +215,9 @@ server %s rule set by message id %s\n""" % (msgid, server, server, msgid)
     log.info('Took %s seconds.' % (end-start))
     log.info('Searching for banned senders...')
     start = time.time()
-    CUR.execute("""SELECT sender, frommsgid FROM bannedsenders
+    cursor.execute("""SELECT sender, frommsgid FROM bannedsenders
                 WHERE banned = 1;""")
-    for ROW in CUR.fetchall():
+    for ROW in cursor.fetchall():
         if ROW[0] != "":
             msgid = escape_regexp_symbols(ROW[1])
             config['sender'] = escape_regexp_symbols(ROW[0])
@@ -237,9 +237,9 @@ to spamming %s rule set by message id %s\n""" % (msgid,
     log.info('Took %s seconds.' % (end-start))
     log.info('Searching for banned subjects...')
     start = time.time()
-    CUR.execute("""SELECT subject, frommsgid
+    cursor.execute("""SELECT subject, frommsgid
                 FROM bannedsubjects WHERE count>1;""")
-    for ROW in CUR.fetchall():
+    for ROW in cursor.fetchall():
         if ROW[0] != "":
             msgid = escape_regexp_symbols(ROW[1])
             subject = escape_regexp_symbols(ROW[0])
@@ -370,14 +370,14 @@ def already_notified(mta, MAIL):
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    CUR = CONN.cursor(buffered=True)
+    cursor = CONN.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
-    CUR.execute("SELECT mta_mail FROM notifiedmtas "
+    cursor.execute("SELECT mta_mail FROM notifiedmtas "
                 "WHERE mta_mail = %s;", (mta_MAIL, ))
-    if CUR.rowcount > 0:
+    if cursor.rowcount > 0:
         log.info("We already sent a notification to %s "
                  "regarding %s" % (MAIL, mta))
-        CUR.close()
+        cursor.close()
         CONN.close()
         return True
     else:
@@ -396,13 +396,13 @@ def add_notification(mta, MAIL):
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    CUR = CONN.cursor(buffered=True)
+    cursor = CONN.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
-    CUR.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
+    cursor.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
                 (mta_MAIL, ))
-    RTID = CUR.lastrowid
+    RTID = cursor.lastrowid
     CONN.commit()
-    CUR.close()
+    cursor.close()
     CONN.close()
     return RTID
 

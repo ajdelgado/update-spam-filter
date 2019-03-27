@@ -334,20 +334,20 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
         RTID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", (REPLYTO, ))
+                       "WHERE sender = %s;", params=(REPLYTO, ))
         log.info("Reply To address already in the database")
         RTID = True
     cursor.execute("SELECT id, count FROM bannedsubjects "
-                   "WHERE subject = %s;", (SUBJECT, ))
+                   "WHERE subject = %s;", params=(SUBJECT, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                       "VALUES (%s, %s);", (SUBJECT, MSGID))
+                       "VALUES (%s, %s);", params=(SUBJECT, MSGID))
         log.info("New spam subject '%s' added to the database." % SUBJECT)
         RTID = CONN.lastrowid
     else:
         ROW = cursor.fetchall()[0]
         cursor.execute("UPDATE bannedsubjects SET count = %s "
-                       "WHERE subject = %s;", (ROW[1]+1, SUBJECT))
+                       "WHERE subject = %s;", params=(ROW[1]+1, SUBJECT))
         log.info("Subject '%s' already in the database, "
                  "added count to %s" % (SUBJECT, str(ROW[1]+1)))
         RTID = True

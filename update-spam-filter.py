@@ -300,6 +300,9 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
                                    charset='utf8',
                                    use_unicode=True)
     cursor = CONN.cursor()
+    log.debug('Banning MTA %s...' % ORIGINALmta)
+    log.debug('Banning sender %s...' % REPLYTO)
+    log.debug('Banning sender %s...' % RETURNPATH)
     cursor.execute("""SELECT id FROM bannedservers
                    WHERE server = %s;""", ORIGINALmta)
     if cursor.rowcount < 1:

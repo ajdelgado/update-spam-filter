@@ -304,7 +304,7 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
     log.info('Banning sender %s...' % REPLYTO)
     log.info('Banning sender %s...' % RETURNPATH)
     cursor.execute("""SELECT id FROM bannedservers
-                   WHERE server = %s;""", params=ORIGINALmta)
+                   WHERE server = %s;""", params=(ORIGINALmta))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s);", params=(ORIGINALmta, MSGID))

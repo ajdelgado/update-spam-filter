@@ -304,25 +304,25 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
     log.info('Banning sender %s...' % REPLYTO)
     log.info('Banning sender %s...' % RETURNPATH)
     cursor.execute("""SELECT id FROM bannedservers
-                   WHERE server = %s;""", ORIGINALmta)
+                   WHERE server = %s;""", params=ORIGINALmta)
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
-                       "VALUES (%s, %s);", (ORIGINALmta, MSGID))
+                       "VALUES (%s, %s);", params=(ORIGINALmta, MSGID))
         mtaID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "
-                       "WHERE server = %s;", (ORIGINALmta, ))
+                       "WHERE server = %s;", params=(ORIGINALmta, ))
         log.info("mta already in the database, banning it again.")
         mtaID = True
     cursor.execute("SELECT id FROM bannedsenders "
-                   "WHERE sender = %s;", (RETURNPATH, ))
+                   "WHERE sender = %s;", params=(RETURNPATH, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
-                       "VALUES (%s, %s);", (RETURNPATH.lower(), MSGID))
+                       "VALUES (%s, %s);", params=(RETURNPATH.lower(), MSGID))
         RPID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", (RETURNPATH, ))
+                       "WHERE sender = %s;", params=(RETURNPATH, ))
         log.info("Return path address already in the database, "
                  "banning it again.")
         RPID = True

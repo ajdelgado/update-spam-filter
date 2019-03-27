@@ -400,7 +400,7 @@ def add_notification(mta, MAIL):
     mta_MAIL = '%s_%s' % (mta, MAIL)
     CUR.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
                 (mta_MAIL, ))
-    RTID = cursor.lastrowid
+    RTID = CUR.lastrowid
     CONN.commit()
     CUR.close()
     CONN.close()

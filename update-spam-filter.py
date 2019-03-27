@@ -363,15 +363,13 @@ def already_notified(mta, MAIL):
     """Check if a mail transport agent owner was already notified"""
     log.info("Checking if we already sent a notification to %s "
              "regarding %s" % (MAIL, mta))
-    CONN = MySQLdb.connect(host=config['dbserver'],
-                           user=config['dbuser'],
-                           passwd=config['dbpass'],
-                           db=config['dbname'],
-                           charset='utf8',
-                           use_unicode=True)
-    mta = CONN.escape_string(mta)
-    MAIL = CONN.escape_string(MAIL)
-    CUR = CONN.cursor()
+    CONN = mysql.connector.connect(host=config['dbserver'],
+                                   user=config['dbuser'],
+                                   passwd=config['dbpass'],
+                                   db=config['dbname'],
+                                   charset='utf8',
+                                   use_unicode=True)
+    CUR = CONN.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
     CUR.execute("SELECT mta_mail FROM notifiedmtas "
                 "WHERE mta_mail = %s;", (mta_MAIL, ))

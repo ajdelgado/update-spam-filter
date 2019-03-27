@@ -304,7 +304,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     log.info('Banning sender %s...' % reply_to)
     log.info('Banning sender %s...' % return_path)
     cursor.execute('SELECT id FROM bannedservers WHERE server = %s',
-                   params=(original_mta))
+                   params=(original_mta,))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s);",
@@ -312,19 +312,19 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
         mtaID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "
-                       "WHERE server = %s;", params=(original_mta, ))
+                       "WHERE server = %s", params=(original_mta, ))
         log.info("Mail transport agent already in the database, banning it "
                  "again.")
         mtaID = True
     cursor.execute("SELECT id FROM bannedsenders "
-                   "WHERE sender = %s;", params=(return_path, ))
+                   "WHERE sender = %s", params=(return_path, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
-                       "VALUES (%s, %s);", params=(return_path.lower(), msg_id))
+                       "VALUES (%s, %s)", params=(return_path.lower(), msg_id))
         RPID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", params=(return_path, ))
+                       "WHERE sender = %s", params=(return_path, ))
         log.info("Return path address already in the database, "
                  "banning it again.")
         RPID = True
@@ -332,24 +332,24 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                    (reply_to, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
-                       "VALUES (%s, %s);", (reply_to.lower(), msg_id))
+                       "VALUES (%s, %s)", (reply_to.lower(), msg_id))
         RTID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", params=(reply_to, ))
+                       "WHERE sender = %s", params=(reply_to, ))
         log.info("Reply To address already in the database")
         RTID = True
     cursor.execute("SELECT id, count FROM bannedsubjects "
-                   "WHERE subject = %s;", params=(subject, ))
+                   "WHERE subject = %s", params=(subject, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                       "VALUES (%s, %s);", params=(subject, msg_id))
+                       "VALUES (%s, %s)", params=(subject, msg_id))
         log.info("New spam subject '%s' added to the database." % subject)
         RTID = CONN.lastrowid
     else:
         ROW = cursor.fetchall()[0]
         cursor.execute("UPDATE bannedsubjects SET count = %s "
-                       "WHERE subject = %s;", params=(ROW[1]+1, subject))
+                       "WHERE subject = %s", params=(ROW[1]+1, subject))
         log.info("Subject '%s' already in the database, "
                  "added count to %s" % (subject, str(ROW[1]+1)))
         RTID = True

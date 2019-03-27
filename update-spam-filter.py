@@ -71,11 +71,11 @@ def get_original_mta(message):
     """Find the mail transport agent that initiated the transaction"""
     RES = re.finditer(r"Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ",
                       NEWDATA)
-    ORIGINALmta = ""
+    original_mta = ""
     for mta in RES:
         if not is_excluded_mta(mta.group(1)):
-            ORIGINALmta = mta.group(1)
-    return ORIGINALmta
+            original_mta = mta.group(1)
+    return original_mta
 
 
 def get_emails_from_text(TEXT):
@@ -116,9 +116,9 @@ def get_whois_mails(DOMAIN):
     return wemail
 
 
-def send_warning(ORIGINALmta, MSGID, HEADERS):
+def send_warning(original_mta, msg_id, HEADERS):
     """Send a warning to an email related to a domain with the spam message"""
-    amta = ORIGINALmta.split(".")
+    amta = original_mta.split(".")
     DOMAIN = amta[len(amta)-2]+"."+amta[len(amta)-1]
     RECIPIENTS = get_whois_mails(DOMAIN)
     if len(RECIPIENTS) < 1:
@@ -126,12 +126,12 @@ def send_warning(ORIGINALmta, MSGID, HEADERS):
                  DOMAIN)
     else:
         for RECIPIENT in RECIPIENTS:
-            if not already_notified(ORIGINALmta, RECIPIENT):
+            if not already_notified(original_mta, RECIPIENT):
                 if type(RECIPIENT) == bytes:
                     RECIPIENT = RECIPIENT.decode('utf-8')
                 msg = MIMEMultipart('alternative')
                 msg['Subject'] = """The server %s was added to our spam
-                list""" % ORIGINALmta
+                list""" % original_mta
                 msg['From'] = config['sender']
                 msg['To'] = RECIPIENT
                 msg['Bcc'] = 'gestor@susurrando.com'
@@ -145,7 +145,7 @@ You're receiving this message because you are in the whois record for the
 domain %s.
 Thanks
 
-Headers of the message:%s""" % (ORIGINALmta, MSGID, DOMAIN, HEADERS)
+Headers of the message:%s""" % (original_mta, msg_id, DOMAIN, HEADERS)
                 html = """
 <HTML><BODY>
 <P>Hi,</P>
@@ -158,7 +158,7 @@ whois record for the domain %s.</P>
 <P>Thanks</P>
 <P>Headers of the message:</P>
 <CODE>%s</CODE>
-</BODY></HTML>""" % (ORIGINALmta, MSGID, DOMAIN, HEADERS)
+</BODY></HTML>""" % (original_mta, msg_id, DOMAIN, HEADERS)
                 part1 = MIMEText(text, 'plain')
                 part2 = MIMEText(html, 'html')
                 msg.attach(part1)
@@ -168,23 +168,23 @@ whois record for the domain %s.</P>
                 server.sendmail(config['sender'], RECIPIENT, msg.as_string())
                 server.quit()
                 count_sent_warnings += 1
-                add_notification(ORIGINALmta, RECIPIENT)
+                add_notification(original_mta, RECIPIENT)
                 log.info("Sent warning mail to %s regarding domain"
                          "%s for the mta %s"
-                         % (RECIPIENT, DOMAIN, ORIGINALmta))
+                         % (RECIPIENT, DOMAIN, original_mta))
 
 
-def add_filters(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, HEADERS, SUBJECT):
-    mtaID, RPID, RTID = add_filters_db(MSGID,
-                                       ORIGINALmta,
-                                       RETURNPATH,
-                                       REPLYTO,
-                                       SUBJECT)
+def add_filters(msg_id, original_mta, return_path, reply_to, HEADERS, subject):
+    mtaID, RPID, RTID = add_filters_db(msg_id,
+                                       original_mta,
+                                       return_path,
+                                       reply_to,
+                                       subject)
     result = True
     if not mtaID or not RPID or not RTID:
         log.error("Error adding filter to database")
         result = False
-    send_warning(ORIGINALmta, MSGID, HEADERS)
+    send_warning(original_mta, msg_id, HEADERS)
     return result
 
 
@@ -288,7 +288,7 @@ spamming %s rule set by message id %s\n""" % (msgid, subject, subject, msgid)
     return True
 
 
-def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
+def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     """Add filters to the database"""
     mtaID = False
     RPID = False
@@ -300,57 +300,58 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
                                    charset='utf8',
                                    use_unicode=True)
     cursor = CONN.cursor()
-    log.info('Banning MTA %s...' % ORIGINALmta)
-    log.info('Banning sender %s...' % REPLYTO)
-    log.info('Banning sender %s...' % RETURNPATH)
-    cursor.execute("SELECT id FROM bannedservers WHERE server = %s;",
-                   params=(ORIGINALmta))
+    log.info('Banning MTA %s...' % original_mta)
+    log.info('Banning sender %s...' % reply_to)
+    log.info('Banning sender %s...' % return_path)
+    cursor.execute('SELECT id FROM bannedservers WHERE server = %s',
+                   params=(original_mta))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s);",
-                       params=(ORIGINALmta, MSGID))
+                       params=(original_mta, msg_id))
         mtaID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "
-                       "WHERE server = %s;", params=(ORIGINALmta, ))
-        log.info("mta already in the database, banning it again.")
+                       "WHERE server = %s;", params=(original_mta, ))
+        log.info("Mail transport agent already in the database, banning it "
+                 "again.")
         mtaID = True
     cursor.execute("SELECT id FROM bannedsenders "
-                   "WHERE sender = %s;", params=(RETURNPATH, ))
+                   "WHERE sender = %s;", params=(return_path, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
-                       "VALUES (%s, %s);", params=(RETURNPATH.lower(), MSGID))
+                       "VALUES (%s, %s);", params=(return_path.lower(), msg_id))
         RPID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", params=(RETURNPATH, ))
+                       "WHERE sender = %s;", params=(return_path, ))
         log.info("Return path address already in the database, "
                  "banning it again.")
         RPID = True
     cursor.execute("SELECT id FROM bannedsenders WHERE sender = %s;",
-                   (REPLYTO, ))
+                   (reply_to, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
-                       "VALUES (%s, %s);", (REPLYTO.lower(), MSGID))
+                       "VALUES (%s, %s);", (reply_to.lower(), msg_id))
         RTID = CONN.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
-                       "WHERE sender = %s;", params=(REPLYTO, ))
+                       "WHERE sender = %s;", params=(reply_to, ))
         log.info("Reply To address already in the database")
         RTID = True
     cursor.execute("SELECT id, count FROM bannedsubjects "
-                   "WHERE subject = %s;", params=(SUBJECT, ))
+                   "WHERE subject = %s;", params=(subject, ))
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                       "VALUES (%s, %s);", params=(SUBJECT, MSGID))
-        log.info("New spam subject '%s' added to the database." % SUBJECT)
+                       "VALUES (%s, %s);", params=(subject, msg_id))
+        log.info("New spam subject '%s' added to the database." % subject)
         RTID = CONN.lastrowid
     else:
         ROW = cursor.fetchall()[0]
         cursor.execute("UPDATE bannedsubjects SET count = %s "
-                       "WHERE subject = %s;", params=(ROW[1]+1, SUBJECT))
+                       "WHERE subject = %s;", params=(ROW[1]+1, subject))
         log.info("Subject '%s' already in the database, "
-                 "added count to %s" % (SUBJECT, str(ROW[1]+1)))
+                 "added count to %s" % (subject, str(ROW[1]+1)))
         RTID = True
     CONN.commit()
     cursor.close()
@@ -562,13 +563,13 @@ else:
         IMAP.logout()
         sys.exit(1)
     log.info("Received: Status: %s Data: %s" % (STATUS, IDATA))
-    MSGID = ""
+    msg_id = ""
     FROM = ""
-    REPLYTO = ""
-    RETURNPATH = ""
-    SUBJECT = ""
+    reply_to = ""
+    return_path = ""
+    subject = ""
     if config['csv']:
-        print("MSGID;ORIGINALmta;RETURNPATH;REPLYTO;FROM;SUBJECT")
+        print("msg_id;original_mta;return_path;reply_to;FROM;subject")
     if IDATA == b'':
         log.warning("No messages match the filter '%s' in the folder '%s'." %
                     (config['imapfilter'], config['imapmailbox']))
@@ -595,9 +596,9 @@ else:
                                           '').replace('\n ',
                                                       ' ').replace('\n\t',
                                                                    ' ')
-                ORIGINALmta = get_original_mta(NEWDATA)
-                if ORIGINALmta != "":
-                    log.info("Located the original server as %s" % ORIGINALmta)
+                original_mta = get_original_mta(NEWDATA)
+                if original_mta != "":
+                    log.info("Located the original server as %s" % original_mta)
                     HEADERS = NEWDATA.splitlines()
                     for HEADER in HEADERS:
                         LHEADER = HEADER.split(": ", 1)
@@ -607,50 +608,50 @@ else:
                         except IndexError:
                             HEADERVALUE = ""
                         if HEADERNAME == "message-id":
-                            MSGID = HEADERVALUE.replace("<",
+                            msg_id = HEADERVALUE.replace("<",
                                                         "").replace(">",
                                                                     "")
-                            log.info("Located message id as %s" % MSGID)
+                            log.info("Located message id as %s" % msg_id)
                         if HEADERNAME == "return-path":
-                            RETURNPATHS = get_emails_from_text(HEADERVALUE)
-                            for RETURNPATH in RETURNPATHS:
+                            return_pathS = get_emails_from_text(HEADERVALUE)
+                            for return_path in return_pathS:
                                 log.info("Located message return path as %s" %
-                                         RETURNPATH)
+                                         return_path)
                         if HEADERNAME == "reply-to":
-                            REPLYTOS = get_emails_from_text(HEADERVALUE)
-                            for REPLYTO in REPLYTOS:
+                            reply_toS = get_emails_from_text(HEADERVALUE)
+                            for reply_to in reply_toS:
                                 log.info("Located message reply to as %s" %
-                                         REPLYTO)
+                                         reply_to)
                         if HEADERNAME == "from":
                             FROMS = get_emails_from_text(HEADERVALUE)
                             for FROM in FROMS:
                                 log.info("Located message sender as %s" % FROM)
-                        if HEADERNAME == "subject" and SUBJECT == "":
+                        if HEADERNAME == "subject" and subject == "":
                             try:
-                                DECSUBJECTS = email.header.decode_header(HEADERVALUE)
+                                DECsubjectS = email.header.decode_header(HEADERVALUE)
                             except:
-                                DECSUBJECTS = ""
-                            for DECSUBJECT in DECSUBJECTS:
-                                PARTIALSUBJECT, ENCODING = DECSUBJECT
+                                DECsubjectS = ""
+                            for DECsubject in DECsubjectS:
+                                PARTIALsubject, ENCODING = DECsubject
                                 if ENCODING is None:
-                                    SUBJECT = "%s %s" % (SUBJECT,
-                                                         PARTIALSUBJECT)
+                                    subject = "%s %s" % (subject,
+                                                         PARTIALsubject)
                                 else:
-                                    SUBJECT = '%s %s' % (SUBJECT,
-                                                         PARTIALSUBJECT.decode(ENCODING,
+                                    subject = '%s %s' % (subject,
+                                                         PARTIALsubject.decode(ENCODING,
                                                                                "replace"))
                             try:
-                                SUBJECT = SUBJECT.encode("utf8", "replace")
+                                subject = subject.encode("utf8", "replace")
                             except UnicodeDecodeError:
-                                SUBJECT = SUBJECT.decode('iso-8859-1').encode('utf8', 'replace')
-                            log.info("Located message subject as %s" % SUBJECT)
+                                subject = subject.decode('iso-8859-1').encode('utf8', 'replace')
+                            log.info("Located message subject as %s" % subject)
 
                     if config['csv']:
                         print("%s;%s;%s;%s;%s;%s" %
-                              (MSGID, ORIGINALmta, RETURNPATH,
-                               REPLYTO, FROM, SUBJECT.lstrip()))
-                    add_filters(MSGID, ORIGINALmta, RETURNPATH, REPLYTO,
-                                HEADERS, SUBJECT)
+                              (msg_id, original_mta, return_path,
+                               reply_to, FROM, subject.lstrip()))
+                    add_filters(msg_id, original_mta, return_path, reply_to,
+                                HEADERS, subject)
                 else:
                     log.warning("Couldn't find the original server")
         for ID in IDS:

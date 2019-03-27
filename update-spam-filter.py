@@ -300,8 +300,8 @@ def add_filters_db(MSGID, ORIGINALmta, RETURNPATH, REPLYTO, SUBJECT):
                                    charset='utf8',
                                    use_unicode=True)
     cursor = CONN.cursor()
-    cursor.execute("SELECT id FROM bannedservers"
-                   "WHERE server = '%s';", ORIGINALmta)
+    cursor.execute("""SELECT id FROM bannedservers
+                   WHERE server = %s;""", ORIGINALmta)
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s);", (ORIGINALmta, MSGID))

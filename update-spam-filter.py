@@ -309,7 +309,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
         cursor.execute("INSERT INTO bannedservers (server, frommsgid)"
                        "VALUES (%s, %s)",
                        params=(original_mta, msg_id))
-        mtaID = CONN.lastrowid
+        mtaID = cursor.lastrowid
     else:
         cursor.execute("UPDATE bannedservers SET banned = 1 "
                        "WHERE server = %s", params=(original_mta, ))
@@ -321,7 +321,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
                        "VALUES (%s, %s)", params=(return_path.lower(), msg_id))
-        RPID = CONN.lastrowid
+        RPID = cursor.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
                        "WHERE sender = %s", params=(return_path, ))
@@ -333,7 +333,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     if cursor.rowcount < 1:
         cursor.execute("INSERT INTO bannedsenders (sender, frommsgid) "
                        "VALUES (%s, %s)", (reply_to.lower(), msg_id))
-        RTID = CONN.lastrowid
+        RTID = cursor.lastrowid
     else:
         cursor.execute("UPDATE bannedsenders SET banned = 1 "
                        "WHERE sender = %s", params=(reply_to, ))
@@ -345,7 +345,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
         cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
                        "VALUES (%s, %s)", params=(subject, msg_id))
         log.info("New spam subject '%s' added to the database." % subject)
-        RTID = CONN.lastrowid
+        RTID = cursor.lastrowid
     else:
         ROW = cursor.fetchall()[0]
         cursor.execute("UPDATE bannedsubjects SET count = %s "

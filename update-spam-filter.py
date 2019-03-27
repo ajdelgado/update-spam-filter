@@ -193,13 +193,13 @@ def add_filter_postfix():
     """Add filters to the postfix configuration file"""
     OUTPUT = """#Created at %s automatically from
 %s\n""" % (time.strftime("%Y-%m%d %H:%M:%S"), sys.argv[0])
-    CONN = mysql.connector.connect(host=config['dbserver'],
+    conn = mysql.connector.connect(host=config['dbserver'],
                                    user=config['dbuser'],
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    cursor = CONN.cursor()
+    cursor = conn.cursor()
     log.info('Searching for banned server...')
     start = time.time()
     cursor.execute("""SELECT server, frommsgid
@@ -294,13 +294,13 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
     mtaID = False
     RPID = False
     RTID = False
-    CONN = mysql.connector.connect(host=config['dbserver'],
+    conn = mysql.connector.connect(host=config['dbserver'],
                                    user=config['dbuser'],
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    cursor = CONN.cursor(buffered=True)
+    cursor = conn.cursor(buffered=True)
     log.info('Banning MTA %s...' % original_mta)
     log.info('Banning sender %s...' % reply_to)
     log.info('Banning sender %s...' % return_path)
@@ -354,9 +354,9 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
         log.info("Subject '%s' already in the database, "
                  "added count to %s" % (subject, str(ROW[1]+1)))
         RTID = True
-    CONN.commit()
+    conn.commit()
     cursor.close()
-    CONN.close()
+    conn.close()
     return mtaID, RPID, RTID
 
 
@@ -364,13 +364,13 @@ def already_notified(mta, MAIL):
     """Check if a mail transport agent owner was already notified"""
     log.info("Checking if we already sent a notification to %s "
              "regarding %s" % (MAIL, mta))
-    CONN = mysql.connector.connect(host=config['dbserver'],
+    conn = mysql.connector.connect(host=config['dbserver'],
                                    user=config['dbuser'],
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    cursor = CONN.cursor(buffered=True)
+    cursor = conn.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
     cursor.execute("SELECT mta_mail FROM notifiedmtas "
                 "WHERE mta_mail = %s;", (mta_MAIL, ))
@@ -378,7 +378,7 @@ def already_notified(mta, MAIL):
         log.info("We already sent a notification to %s "
                  "regarding %s" % (MAIL, mta))
         cursor.close()
-        CONN.close()
+        conn.close()
         return True
     else:
         log.info("We didn't send a notification to %s "
@@ -390,20 +390,20 @@ def add_notification(mta, MAIL):
     """Add the notification of an owner to the database"""
     log.info("Adding that we sent a notification to %s regarding "
              "%s" % (MAIL, mta))
-    CONN = mysql.connector.connect(host=config['dbserver'],
+    conn = mysql.connector.connect(host=config['dbserver'],
                                    user=config['dbuser'],
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
                                    use_unicode=True)
-    cursor = CONN.cursor(buffered=True)
+    cursor = conn.cursor(buffered=True)
     mta_MAIL = '%s_%s' % (mta, MAIL)
     cursor.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);",
                 (mta_MAIL, ))
     RTID = cursor.lastrowid
-    CONN.commit()
+    conn.commit()
     cursor.close()
-    CONN.close()
+    conn.close()
     return RTID
 
 

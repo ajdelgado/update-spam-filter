@@ -289,7 +289,7 @@ spamming %s rule set by message id %s\n""" % (msgid, subject, subject, msgid)
 
 
 def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
-    """Add filters to the database"""
+    """Ban servers and senders, by adding them to the database"""
     mtaID = False
     RPID = False
     RTID = False

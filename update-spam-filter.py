@@ -243,9 +243,10 @@ to spamming %s rule set by message id %s\n""" % (msgid,
         if ROW[0] != "":
             msgid = escape_regexp_symbols(ROW[1])
             subject = escape_regexp_symbols(ROW[0])
-            OUTPUT += """#From message id %s
-/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to
-spamming %s rule set by message id %s\n""" % (msgid, subject, subject, msgid)
+            OUTPUT += "#From message id %s"
+	              "/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: "
+                      "Marked as spam reply to spamming %s rule set by "
+                      "message id %s\n" % (msgid, subject, subject, msgid)
     OUTPUT += "#End of automatically added data"
     end = time.time()
     log.info('Took %s seconds.' % (end-start))

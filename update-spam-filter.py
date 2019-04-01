@@ -341,20 +341,21 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                        "WHERE sender = %s", params=(reply_to, ))
         log.info("Reply To address already in the database")
         RTID = True
-    cursor.execute("SELECT id, count FROM bannedsubjects "
-                   "WHERE subject = %s", params=(subject, ))
-    if cursor.rowcount < 1:
-        cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                       "VALUES (%s, %s)", params=(subject, msg_id))
-        log.info("New spam subject '%s' added to the database." % subject)
-        RTID = cursor.lastrowid
-    else:
-        ROW = cursor.fetchall()[0]
-        cursor.execute("UPDATE bannedsubjects SET count = %s "
-                       "WHERE subject = %s", params=(ROW[1]+1, subject))
-        log.info("Subject '%s' already in the database, "
-                 "added count to %s" % (subject, str(ROW[1]+1)))
-        RTID = True
+    if number_of_words(subject) > config['subject_min_words']:
+        cursor.execute("SELECT id, count FROM bannedsubjects "
+                       "WHERE subject = %s", params=(subject, ))
+        if cursor.rowcount < 1:
+            cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
+                           "VALUES (%s, %s)", params=(subject, msg_id))
+            log.info("New spam subject '%s' added to the database." % subject)
+            RTID = cursor.lastrowid
+        else:
+            ROW = cursor.fetchall()[0]
+            cursor.execute("UPDATE bannedsubjects SET count = %s "
+                           "WHERE subject = %s", params=(ROW[1]+1, subject))
+            log.info("Subject '%s' already in the database, "
+                     "added count to %s" % (subject, str(ROW[1]+1)))
+            RTID = True
     conn.commit()
     cursor.close()
     conn.close()
@@ -406,6 +407,11 @@ def add_notification(mta, MAIL):
     cursor.close()
     conn.close()
     return RTID
+
+
+def number_of_words(text):
+    list = re.split('\W+', text)
+    return len(list)
 
 
 count_sent_warnings = 0
@@ -484,6 +490,9 @@ parser.add_argument('--db-table', dest='dbtable',
 parser.add_argument('--db-server', dest='dbserver',
                     default='localhost',
                     help='Database server.')
+parser.add_argument('--subject_min_words', dest='subject_min_words',
+                    default=2,
+                    help='Minimum number of words in a subject to be banned.')
 args = parser.parse_args()
 config = vars(args)
 if config['configfile'] is not None:

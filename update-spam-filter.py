@@ -300,9 +300,9 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                                    charset='utf8',
                                    use_unicode=True)
     cursor = conn.cursor(buffered=True)
+
+    # Server ban
     log.info('Banning MTA %s...' % original_mta)
-    log.info('Banning sender %s...' % reply_to)
-    log.info('Banning sender %s...' % return_path)
     cursor.execute('SELECT id FROM bannedservers WHERE server = %s',
                    params=(original_mta,))
     if cursor.rowcount < 1:
@@ -316,6 +316,10 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
         log.info("Mail transport agent already in the database, banning it "
                  "again.")
         mtaID = True
+
+    # Senders ban
+    log.info('Banning sender %s...' % reply_to)
+    log.info('Banning sender %s...' % return_path)
     cursor.execute("SELECT id FROM bannedsenders "
                    "WHERE sender = %s", params=(return_path, ))
     if cursor.rowcount < 1:
@@ -339,21 +343,29 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                        "WHERE sender = %s", params=(reply_to, ))
         log.info("Reply To address already in the database")
         RTID = True
-    if number_of_words(subject) > config['subject_min_words']:
-        cursor.execute("SELECT id, count FROM bannedsubjects "
-                       "WHERE subject = %s", params=(subject, ))
-        if cursor.rowcount < 1:
-            cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                           "VALUES (%s, %s)", params=(subject, msg_id))
-            log.info("New spam subject '%s' added to the database." % subject)
-            RTID = cursor.lastrowid
+
+    # Subject ban
+    if subject not in config['excluded_filters']:
+        if number_of_words(subject) > config['subject_min_words']:
+            log.info("Banning subjects like '{}'...".format(subject))
+            cursor.execute("SELECT id, count FROM bannedsubjects "
+                           "WHERE subject = %s", params=(subject, ))
+            if cursor.rowcount < 1:
+                cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
+                               "VALUES (%s, %s)", params=(subject, msg_id))
+                log.info("New spam subject '%s' added to the database." % subject)
+                RTID = cursor.lastrowid
+            else:
+                ROW = cursor.fetchall()[0]
+                cursor.execute("UPDATE bannedsubjects SET count = %s "
+                               "WHERE subject = %s", params=(ROW[1]+1, subject))
+                log.info("Subject '%s' already in the database, "
+                         "added count to %s" % (subject, str(ROW[1]+1)))
+                RTID = True
         else:
-            ROW = cursor.fetchall()[0]
-            cursor.execute("UPDATE bannedsubjects SET count = %s "
-                           "WHERE subject = %s", params=(ROW[1]+1, subject))
-            log.info("Subject '%s' already in the database, "
-                     "added count to %s" % (subject, str(ROW[1]+1)))
-            RTID = True
+            log.debug("Subject '{}' won't be banned, because it's too short.".format(subject))
+    else:
+        log.debug("Subject '{}' won't be banned, because is in the list not to filter.".format(subject))
     conn.commit()
     cursor.close()
     conn.close()
@@ -429,6 +441,9 @@ parser = argparse.ArgumentParser(description='Examine messages marked as '
                                  'spam in an IMAP folder, add mail filters'
                                  ' to similar messages and notify owners '
                                  'of the mail servers used.')
+parser.add_argument('--excluded-filters', dest='excluded_filters',
+                    action='append',
+                    help='List of subjects not to filter out. Any subject filter that match a member of this list won\'t be added.')
 parser.add_argument('--excluded-mta', dest='excluded_mtas',
                     action='append',
                     help='Mail Transport Agent to exclude '

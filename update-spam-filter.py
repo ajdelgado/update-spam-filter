@@ -420,7 +420,10 @@ def add_notification(mta, MAIL):
 
 
 def number_of_words(text):
-    list = re.split('\W+', text)
+    if isinstance(text, bytes):
+        list = re.split('\W+', text.decode())
+    else:
+        list = re.split('\W+', text)
     return len(list)
 
 

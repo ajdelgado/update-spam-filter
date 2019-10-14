@@ -298,8 +298,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
-                                   use_unicode=True,
-                                   init_command='SET NAMES UTF8')
+                                   use_unicode=True)
     cursor = conn.cursor(buffered=True)
 
     # Server ban
@@ -352,27 +351,28 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
             RPID = True
 
     # Subject ban
-    if subject not in config['excluded_filters']:
-        if number_of_words(subject) > config['subject_min_words']:
-            log.info("Banning subjects like '{}'...".format(subject))
+    decoded_subject = subject.decode('unicode_escape').encode('iso8859-1').decode('utf8')
+    if decoded_subject not in config['excluded_filters']:
+        if number_of_words(decoded_subject) > config['subject_min_words']:
+            log.info("Banning subjects like '{}'...".format(decoded_subject))
             cursor.execute("SELECT id, count FROM bannedsubjects "
-                           "WHERE subject = %s", params=(subject, ))
+                           "WHERE subject = %s", params=(decoded_subject, ))
             if cursor.rowcount < 1:
                 cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
-                               "VALUES (%s, %s)", params=(subject, msg_id))
+                               "VALUES (%s, %s)", params=(decoded_subject, msg_id))
                 log.info("New spam subject '%s' added to the database." % subject)
                 RTID = cursor.lastrowid
             else:
                 ROW = cursor.fetchall()[0]
                 cursor.execute("UPDATE bannedsubjects SET count = %s "
-                               "WHERE subject = %s", params=(ROW[1]+1, subject))
+                               "WHERE subject = %s", params=(ROW[1]+1, decoded_subject))
                 log.info("Subject '%s' already in the database, "
-                         "added count to %s" % (subject, str(ROW[1]+1)))
+                         "added count to %s" % (decoded_subject, str(ROW[1]+1)))
                 RTID = True
         else:
-            log.debug("Subject '{}' won't be banned, because it's too short.".format(subject))
+            log.debug("Subject '{}' won't be banned, because it's too short.".format(decoded_subject))
     else:
-        log.debug("Subject '{}' won't be banned, because is in the list not to filter.".format(subject))
+        log.debug("Subject '{}' won't be banned, because is in the list not to filter.".format(decoded_subject))
     conn.commit()
     cursor.close()
     conn.close()

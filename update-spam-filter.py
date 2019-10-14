@@ -298,7 +298,8 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
                                    passwd=config['dbpass'],
                                    db=config['dbname'],
                                    charset='utf8',
-                                   use_unicode=True)
+                                   use_unicode=True,
+                                   init_command='SET NAMES UTF8')
     cursor = conn.cursor(buffered=True)
 
     # Server ban

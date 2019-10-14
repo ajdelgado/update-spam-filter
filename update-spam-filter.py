@@ -352,6 +352,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
 
     # Subject ban
     decoded_subject = subject.decode('unicode_escape').encode('iso8859-1').decode('utf8')
+    log.debug('Decoded subject: %s' % decoded_subject)
     if decoded_subject not in config['excluded_filters']:
         if number_of_words(decoded_subject) > config['subject_min_words']:
             log.info("Banning subjects like '{}'...".format(decoded_subject))
@@ -360,7 +361,7 @@ def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
             if cursor.rowcount < 1:
                 cursor.execute("INSERT INTO bannedsubjects (subject, frommsgid) "
                                "VALUES (%s, %s)", params=(decoded_subject, msg_id))
-                log.info("New spam subject '%s' added to the database." % subject)
+                log.info("New spam subject '%s' added to the database." % decoded_subject)
                 RTID = cursor.lastrowid
             else:
                 ROW = cursor.fetchall()[0]

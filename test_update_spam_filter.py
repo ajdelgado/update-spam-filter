@@ -13,10 +13,18 @@ class escape_regexp_symbols_test_case(unittest.TestCase):
 
     def test_escape_regexp_symbols_only_strings(self):
         """Return false if not a string"""
-        self.assertFalse(escape_regexp_symbols(42))
-        self.assertFalse(escape_regexp_symbols(1.2))
-        self.assertFalse(escape_regexp_symbols(list()))
-        self.assertFalse(escape_regexp_symbols(dict()))
+        self.assertFalse(
+            escape_regexp_symbols(42), msg="An integer should not be escaped"
+        )
+        self.assertFalse(
+            escape_regexp_symbols(1.2), msg="A double should not be escaped"
+        )
+        self.assertFalse(
+            escape_regexp_symbols(list()), msg="A list should not be escaped"
+        )
+        self.assertFalse(
+            escape_regexp_symbols(dict()), msg="A dictionary should not be escaped"
+        )
 
 
 class is_excluded_mta_test_case(unittest.TestCase):
@@ -34,10 +42,10 @@ class is_junk_test_case(unittest.TestCase):
 
     def test_is_junk_not_dict(self):
         """Return false if not a message structure?"""
-        self.assertFalse(is_junk("a"))
-        self.assertFalse(is_junk(42))
-        self.assertFalse(is_junk(1.2))
-        self.assertFalse(is_junk(list()))
+        self.assertFalse(is_junk("a"), msg="A simple string should not be Junk")
+        self.assertFalse(is_junk(42), msg="An integer should not be Junk")
+        self.assertFalse(is_junk(1.2), msg="A double should not be Junk")
+        self.assertFalse(is_junk(list()), msg="A list should not be Junk")
 
     def test_is_junk_sample_message(self):
         """Test with a sample message"""

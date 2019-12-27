@@ -83,6 +83,13 @@ class update_spam_filter:
                 original_mta = mta.group(1)
         return original_mta
 
+    def get_original_mta_2(self, message):
+        last_mta = ""
+        for k, v in message.items():
+            if k == "Received":
+                last_mta = v.split(" ")[1]
+        return last_mta
+
     def get_emails_from_text(self, TEXT):
         """Obtain emails from a text"""
         if type(TEXT) == bytes:
@@ -690,7 +697,7 @@ class update_spam_filter:
         )
         if "ssl" in self.config and self.config["ssl"]:
             try:
-                IMAP = imaplib.IMAP4_SSL(
+                self.IMAP = imaplib.IMAP4_SSL(
                     self.config["imapserver"], self.config["imapport"]
                 )
             except:
@@ -762,6 +769,28 @@ class update_spam_filter:
             self.IMAP.expunge()
         return True
 
+    def _get_subject(self, msg):
+        subject = ""
+        try:
+            DECsubjectS = email.header.decode_header(msg.get("Subject", ""))
+        except:
+            DECsubjectS = ""
+        for DECsubject in DECsubjectS:
+            PARTIALsubject, ENCODING = DECsubject
+            if ENCODING is None:
+                subject = "%s %s" % (subject, PARTIALsubject)
+            else:
+                subject = "%s %s" % (
+                    subject,
+                    PARTIALsubject.decode(ENCODING, "replace"),
+                )
+        try:
+            subject = subject.encode("utf8", "replace")
+        except UnicodeDecodeError:
+            subject = subject.decode("iso-8859-1").encode("utf8", "replace")
+        self._log.info("Located message subject as %s" % subject)
+        return subject
+
     def _process_message(self, ID):
         try:
             STATUS, DATA = self.IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
@@ -787,39 +816,11 @@ class update_spam_filter:
         FROMS = self.get_emails_from_text(msg.get("From", ""))
         for FROM in FROMS:
             self._log.info("Located message sender as %s" % FROM)
-        try:
-            DECsubjectS = email.header.decode_header(msg.get("Subject", ""))
-        except:
-            DECsubjectS = ""
-        for DECsubject in DECsubjectS:
-            PARTIALsubject, ENCODING = DECsubject
-            if ENCODING is None:
-                subject = "%s %s" % (subject, PARTIALsubject)
-            else:
-                subject = "%s %s" % (
-                    subject,
-                    PARTIALsubject.decode(ENCODING, "replace"),
-                )
-        try:
-            subject = subject.encode("utf8", "replace")
-        except UnicodeDecodeError:
-            subject = subject.decode("iso-8859-1").encode("utf8", "replace")
-        self._log.info("Located message subject as %s" % subject)
+        subject = self._get_subject(msg)
 
-        newdata = HEADERS.replace("\r", "")
-        newdata = newdata.replace("\n ", " ")
-        newdata = newdata.replace("\n\t", " ")
-        original_mta = self.get_original_mta(newdata)
+        original_mta = self.get_original_mta_2(msg)
         if original_mta != "":
             self._log.info("Located the original server as %s" % original_mta)
-            HEADERS = newdata.splitlines()
-            for HEADER in HEADERS:
-                LHEADER = HEADER.split(": ", 1)
-                HEADERNAME = LHEADER[0].lower()
-                try:
-                    HEADERVALUE = LHEADER[1]
-                except IndexError:
-                    HEADERVALUE = ""
 
             if self.config["csv"]:
                 print(

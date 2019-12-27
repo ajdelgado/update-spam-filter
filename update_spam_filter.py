@@ -27,732 +27,803 @@ import json
 import mysql.connector
 
 
-def escape_regexp_symbols(text):
-    """Replace characters used in regular expressions"""
-    if not isinstance(text, str):
+class update_spam_filter:
+    def escape_regexp_symbols(self, text):
+        """Replace characters used in regular expressions"""
+        if not isinstance(text, str):
+            return False
+        else:
+            result = text
+            result = result.replace("\\", "\\\\")
+            result = result.replace("[", "\\[")
+            result = result.replace("]", "\\]")
+            result = result.replace("?", "\\?")
+            result = result.replace(".", "\\.")
+            result = result.replace("*", "\\*")
+            result = result.replace("{", "\\{")
+            result = result.replace("}", "\\}")
+            result = result.replace("$", "\\$")
+            result = result.replace("^", "\\^")
+            result = result.replace("-", "\\-")
+            result = result.replace("(", "\\(")
+            result = result.replace(")", "\\)")
+            result = result.replace("=", "\\=")
+            result = result.replace(":", "\\:")
+            result = result.replace("!", "\\!")
+            result = result.replace("|", "\\|")
+            result = result.replace(",", "\\,")
+            return result
+
+    def is_excluded_mta(self, mta):
+        """Check if the mail transport agent is part of the ones excluded"""
+        for emta in self.config["excluded_mtas"]:
+            if re.search(emta, mta) is not None:
+                return True
         return False
-    else:
-        result = text
-        result = result.replace("\\", "\\\\")
-        result = result.replace("[", "\\[")
-        result = result.replace("]", "\\]")
-        result = result.replace("?", "\\?")
-        result = result.replace(".", "\\.")
-        result = result.replace("*", "\\*")
-        result = result.replace("{", "\\{")
-        result = result.replace("}", "\\}")
-        result = result.replace("$", "\\$")
-        result = result.replace("^", "\\^")
-        result = result.replace("-", "\\-")
-        result = result.replace("(", "\\(")
-        result = result.replace(")", "\\)")
-        result = result.replace("=", "\\=")
-        result = result.replace(":", "\\:")
-        result = result.replace("!", "\\!")
-        result = result.replace("|", "\\|")
-        result = result.replace(",", "\\,")
+
+    def is_junk(self, message):
+        """Check if a message is considered Junk"""
+        if not isinstance(message, dict):
+            return False
+        if not isinstance(message[0][0], str):
+            return False
+        if message[0][0].find(" Junk") > -1:
+            return True
+        else:
+            return False
+
+    def get_original_mta(self, message):
+        """Find the mail transport agent that initiated the transaction"""
+        RES = re.finditer(
+            r"Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ", self.newdata
+        )
+        original_mta = ""
+        for mta in RES:
+            if not self.is_excluded_mta(mta.group(1), self.config):
+                original_mta = mta.group(1)
+        return original_mta
+
+    def get_emails_from_text(self, TEXT):
+        """Obtain emails from a text"""
+        if type(TEXT) == bytes:
+            TEXT = TEXT.decode("utf-8")
+        RES = re.findall(
+            r"<?([a-zA-Z0-9\.\-]*@[a-zA-Z0-9\.\-]{2,}" r"\.[a-zA-Z0-9\.\-_]{2,})>?",
+            TEXT,
+        )
+        if RES is not None:
+            RET = list()
+            for mailaddress in RES:
+                if mailaddress not in RET:
+                    RET.append(mailaddress)
+            return RET
+        else:
+            return False
+
+    def dns_query(self, domain):
+        """Do a DNS query"""
+        RESULT = subprocess.Popen(
+            ["dig", "+short", domain],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=False,
+        )
+        OUTPUT = RESULT.communicate()[0]
+        return OUTPUT.replace(chr(10), "")
+
+    def get_whois_mails(self, domain):
+        """Obtain emails from a whois record"""
+        RESULT = subprocess.Popen(
+            ["/usr/bin/whois", domain],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=False,
+        )
+        OUTPUT = RESULT.communicate()[0]
+        wemail = self.get_emails_from_text(OUTPUT)
+        return wemail
+
+    def send_warning(self, original_mta, msg_id, HEADERS):
+        """Send a warning to an email related to a domain with the
+        spam message"""
+        amta = original_mta.split(".")
+        domain = amta[len(amta) - 2] + "." + amta[len(amta) - 1]
+        RECIPIENTS = self.get_whois_mails(domain)
+        if len(RECIPIENTS) < 1:
+            self._log.info(
+                "Unable to find an email address in the whois record for %s" % domain
+            )
+        else:
+            for RECIPIENT in RECIPIENTS:
+                if not self.already_notified(original_mta, RECIPIENT):
+                    if type(RECIPIENT) == bytes:
+                        RECIPIENT = RECIPIENT.decode("utf-8")
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = (
+                        """The server %s was added to our spam
+                    list"""
+                        % original_mta
+                    )
+                    msg["From"] = self.config["sender"]
+                    msg["To"] = RECIPIENT
+                    msg["Bcc"] = "gestor@susurrando.com"
+                    text = """
+    Hi,
+    The server %s was added to our spam list because is sending spam messages
+    like the message id %s.
+    Please, check the server and report back in case you would like to remove
+    it from our list.
+    You're receiving this message because you are in the whois record for the
+    domain %s.
+    Thanks
+
+    Headers of the message:%s""" % (
+                        original_mta,
+                        msg_id,
+                        domain,
+                        HEADERS,
+                    )
+                    html = """
+    <HTML><BODY>
+    <P>Hi,</P>
+    <P>The server %s was added to our spam list because is sending
+    spam messages like the message id %s.</P>
+    <P>Please, check the server and report back in case you would
+    like to remove it from our list.</P>
+    <P>You're receiving this message because you are in the
+    whois record for the domain %s.</P>
+    <P>Thanks</P>
+    <P>Headers of the message:</P>
+    <CODE>%s</CODE>
+    </BODY></HTML>""" % (
+                        original_mta,
+                        msg_id,
+                        domain,
+                        HEADERS,
+                    )
+                    part1 = MIMEText(text, "plain")
+                    part2 = MIMEText(html, "html")
+                    msg.attach(part1)
+                    msg.attach(part2)
+                    server = smtplib.SMTP("localhost")
+                    self._log.info("Sending email to '%s'" % RECIPIENT)
+                    server.sendmail(self.config["sender"], RECIPIENT, msg.as_string())
+                    server.quit()
+                    self.count_sent_warnings += 1
+                    self.add_notification(original_mta, RECIPIENT)
+                    self._log.info(
+                        "Sent warning mail to %s regarding domain"
+                        "%s for the mta %s" % (RECIPIENT, domain, original_mta)
+                    )
+
+    def add_filters(
+        self, msg_id, original_mta, return_path, reply_to, HEADERS, subject
+    ):
+        mta_id, RPID, RTID = self.add_filters_db(
+            self, msg_id, original_mta, return_path, reply_to, subject
+        )
+        result = True
+        if not mta_id or not RPID or not RTID:
+            self._log.error("Error adding filter to database")
+            result = False
+        self.send_warning(original_mta, msg_id, HEADERS)
         return result
 
-
-def is_excluded_mta(mta, config):
-    """Check if the mail transport agent is part of the ones excluded"""
-    for emta in config["excluded_mtas"]:
-        if re.search(emta, mta) is not None:
-            return True
-    return False
-
-
-def is_junk(message):
-    """Check if a message is considered Junk"""
-    if not isinstance(message, dict):
-        return False
-    if not isinstance(message[0][0], str):
-        return False
-    if message[0][0].find(" Junk") > -1:
+    def add_filter_postfix(self):
+        """Add filters to the postfix configuration file"""
+        OUTPUT = """#Created at %s automatically from
+    %s\n""" % (
+            time.strftime("%Y-%m%d %H:%M:%S"),
+            sys.argv[0],
+        )
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            charset="utf8",
+            use_unicode=True,
+        )
+        cursor = conn.cursor()
+        self._log.info("Searching for banned server...")
+        start = time.time()
+        cursor.execute(
+            """SELECT server, frommsgid
+                    FROM bannedservers WHERE banned = 1;"""
+        )
+        for ROW in cursor.fetchall():
+            if ROW[0] != "":
+                msgid = self.escape_regexp_symbols(ROW[1])
+                server = self.escape_regexp_symbols(ROW[0])
+                OUTPUT += """#From message id %s
+    /^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received
+    from server %s rule set by message id %s\n""" % (
+                    msgid,
+                    server,
+                    server,
+                    msgid,
+                )
+        end = time.time()
+        self._log.info("Took %s seconds." % (end - start))
+        self._log.info("Searching for banned senders...")
+        start = time.time()
+        cursor.execute(
+            """SELECT sender, frommsgid FROM bannedsenders
+                    WHERE banned = 1;"""
+        )
+        for ROW in cursor.fetchall():
+            if ROW[0] != "":
+                msgid = self.escape_regexp_symbols(ROW[1])
+                self.config["sender"] = self.escape_regexp_symbols(ROW[0])
+                OUTPUT += """#From message id %s
+    /^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return
+    path spamming %s rule set by message id %s\n""" % (
+                    msgid,
+                    self.config["sender"],
+                    self.config["sender"],
+                    msgid,
+                )
+                OUTPUT += """#From message id %s
+    /^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply
+    to spamming %s rule set by message id %s\n""" % (
+                    msgid,
+                    self.config["sender"],
+                    self.config["sender"],
+                    msgid,
+                )
+        end = time.time()
+        self._log.info("Took %s seconds." % (end - start))
+        self._log.info("Searching for banned subjects...")
+        start = time.time()
+        cursor.execute(
+            """SELECT subject, frommsgid
+                    FROM bannedsubjects WHERE count>1;"""
+        )
+        for ROW in cursor.fetchall():
+            if ROW[0] != "":
+                msgid = self.escape_regexp_symbols(ROW[1])
+                subject = self.escape_regexp_symbols(ROW[0])
+                OUTPUT += """#From message id %s"
+    /^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n""" % (
+                    msgid,
+                    subject,
+                    subject,
+                    msgid,
+                )
+        OUTPUT += "#End of automatically added data"
+        end = time.time()
+        self._log.info("Took %s seconds." % (end - start))
+        self._log.info("Replacing dollar symbol...")
+        OUTPUT = OUTPUT.replace("$", "$$")
+        self._log.info(
+            "Opening file '%s' to output the resulted filter..."
+            % self.config["postfixheadercheckfile"]
+        )
+        try:
+            FILEH = open(self.config["postfixheadercheckfile"], "w")
+        except:
+            self._log.error("Error opening filter file to append new filter", True)
+            return False
+        self._log.info("Writting to disk...")
+        start = time.time()
+        FILEH.write("%s" % OUTPUT)
+        end = time.time()
+        self._log.info("Took %s seconds to write to disk." % (end - start))
+        FILEH.close()
+        self._log.info("Running postmap command on filter's file")
+        try:
+            OUTPUT = subprocess.check_output(
+                [
+                    "/usr/bin/sudo",
+                    "/usr/sbin/postmap",
+                    self.config["postfixheadercheckfile"],
+                ],
+                stderr=subprocess.STDOUT,
+                shell=False,
+            )
+        except subprocess.CalledProcessError:
+            self._log.info(OUTPUT, True)
+            self._log.error("Error indexing postfix filter file", True)
+            return False
+        self._log.info("Reloading postfix...")
+        try:
+            OUTPUT = subprocess.check_output(
+                ["/usr/bin/sudo", "/usr/sbin/postfix", "reload"],
+                stderr=subprocess.STDOUT,
+                shell=False,
+            )
+        except subprocess.CalledProcessError:
+            self._log.info(OUTPUT, True)
+            self._log.error("Error reloading postfix settings", True)
+            return False
         return True
-    else:
-        return False
 
-
-def get_original_mta(message):
-    """Find the mail transport agent that initiated the transaction"""
-    RES = re.finditer(r"Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ", NEWDATA)
-    original_mta = ""
-    for mta in RES:
-        if not is_excluded_mta(mta.group(1), config):
-            original_mta = mta.group(1)
-    return original_mta
-
-
-def get_emails_from_text(TEXT):
-    """Obtain emails from a text"""
-    if type(TEXT) == bytes:
-        TEXT = TEXT.decode("utf-8")
-    RES = re.findall(
-        r"<?([a-zA-Z0-9\.\-]*@[a-zA-Z0-9\.\-]{2,}" r"\.[a-zA-Z0-9\.\-_]{2,})>?", TEXT
-    )
-    if RES is not None:
-        RET = list()
-        for mailaddress in RES:
-            if mailaddress not in RET:
-                RET.append(mailaddress)
-        return RET
-    else:
-        return False
-
-
-def dns_query(DOMAIN):
-    """Do a DNS query"""
-    RESULT = subprocess.Popen(
-        ["dig", "+short", DOMAIN],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        shell=False,
-    )
-    OUTPUT = RESULT.communicate()[0]
-    return OUTPUT.replace(chr(10), "")
-
-
-def get_whois_mails(DOMAIN):
-    """Obtain emails from a whois record"""
-    RESULT = subprocess.Popen(
-        ["/usr/bin/whois", DOMAIN],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        shell=False,
-    )
-    OUTPUT = RESULT.communicate()[0]
-    wemail = get_emails_from_text(OUTPUT)
-    return wemail
-
-
-def send_warning(original_mta, msg_id, HEADERS):
-    """Send a warning to an email related to a domain with the spam message"""
-    global count_sent_warnings
-    amta = original_mta.split(".")
-    DOMAIN = amta[len(amta) - 2] + "." + amta[len(amta) - 1]
-    RECIPIENTS = get_whois_mails(DOMAIN)
-    if len(RECIPIENTS) < 1:
-        log.info("Unable to find an email address in the whois record for %s" % DOMAIN)
-    else:
-        for RECIPIENT in RECIPIENTS:
-            if not already_notified(original_mta, RECIPIENT):
-                if type(RECIPIENT) == bytes:
-                    RECIPIENT = RECIPIENT.decode("utf-8")
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = (
-                    """The server %s was added to our spam
-                list"""
-                    % original_mta
-                )
-                msg["From"] = config["sender"]
-                msg["To"] = RECIPIENT
-                msg["Bcc"] = "gestor@susurrando.com"
-                text = """
-Hi,
-The server %s was added to our spam list because is sending spam messages like
-the message id %s.
-Please, check the server and report back in case you would like to remove
-it from our list.
-You're receiving this message because you are in the whois record for the
-domain %s.
-Thanks
-
-Headers of the message:%s""" % (
-                    original_mta,
-                    msg_id,
-                    DOMAIN,
-                    HEADERS,
-                )
-                html = """
-<HTML><BODY>
-<P>Hi,</P>
-<P>The server %s was added to our spam list because is sending
-spam messages like the message id %s.</P>
-<P>Please, check the server and report back in case you would
-like to remove it from our list.</P>
-<P>You're receiving this message because you are in the
-whois record for the domain %s.</P>
-<P>Thanks</P>
-<P>Headers of the message:</P>
-<CODE>%s</CODE>
-</BODY></HTML>""" % (
-                    original_mta,
-                    msg_id,
-                    DOMAIN,
-                    HEADERS,
-                )
-                part1 = MIMEText(text, "plain")
-                part2 = MIMEText(html, "html")
-                msg.attach(part1)
-                msg.attach(part2)
-                server = smtplib.SMTP("localhost")
-                log.info("Sending email to '%s'" % RECIPIENT)
-                server.sendmail(config["sender"], RECIPIENT, msg.as_string())
-                server.quit()
-                count_sent_warnings += 1
-                add_notification(original_mta, RECIPIENT)
-                log.info(
-                    "Sent warning mail to %s regarding domain"
-                    "%s for the mta %s" % (RECIPIENT, DOMAIN, original_mta)
-                )
-
-
-def add_filters(msg_id, original_mta, return_path, reply_to, HEADERS, subject):
-    mtaID, RPID, RTID = add_filters_db(
-        msg_id, original_mta, return_path, reply_to, subject
-    )
-    result = True
-    if not mtaID or not RPID or not RTID:
-        log.error("Error adding filter to database")
-        result = False
-    send_warning(original_mta, msg_id, HEADERS)
-    return result
-
-
-def add_filter_postfix():
-    """Add filters to the postfix configuration file"""
-    OUTPUT = """#Created at %s automatically from
-%s\n""" % (
-        time.strftime("%Y-%m%d %H:%M:%S"),
-        sys.argv[0],
-    )
-    conn = mysql.connector.connect(
-        host=config["dbserver"],
-        user=config["dbuser"],
-        passwd=config["dbpass"],
-        db=config["dbname"],
-        charset="utf8",
-        use_unicode=True,
-    )
-    cursor = conn.cursor()
-    log.info("Searching for banned server...")
-    start = time.time()
-    cursor.execute(
-        """SELECT server, frommsgid
-                FROM bannedservers WHERE banned = 1;"""
-    )
-    for ROW in cursor.fetchall():
-        if ROW[0] != "":
-            msgid = escape_regexp_symbols(ROW[1])
-            server = escape_regexp_symbols(ROW[0])
-            OUTPUT += """#From message id %s
-/^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received from
-server %s rule set by message id %s\n""" % (
-                msgid,
-                server,
-                server,
-                msgid,
-            )
-    end = time.time()
-    log.info("Took %s seconds." % (end - start))
-    log.info("Searching for banned senders...")
-    start = time.time()
-    cursor.execute(
-        """SELECT sender, frommsgid FROM bannedsenders
-                WHERE banned = 1;"""
-    )
-    for ROW in cursor.fetchall():
-        if ROW[0] != "":
-            msgid = escape_regexp_symbols(ROW[1])
-            config["sender"] = escape_regexp_symbols(ROW[0])
-            OUTPUT += """#From message id %s
-/^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return
-path spamming %s rule set by message id %s\n""" % (
-                msgid,
-                config["sender"],
-                config["sender"],
-                msgid,
-            )
-            OUTPUT += """#From message id %s
-/^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply
-to spamming %s rule set by message id %s\n""" % (
-                msgid,
-                config["sender"],
-                config["sender"],
-                msgid,
-            )
-    end = time.time()
-    log.info("Took %s seconds." % (end - start))
-    log.info("Searching for banned subjects...")
-    start = time.time()
-    cursor.execute(
-        """SELECT subject, frommsgid
-                FROM bannedsubjects WHERE count>1;"""
-    )
-    for ROW in cursor.fetchall():
-        if ROW[0] != "":
-            msgid = escape_regexp_symbols(ROW[1])
-            subject = escape_regexp_symbols(ROW[0])
-            OUTPUT += """#From message id %s"
-/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n""" % (
-                msgid,
-                subject,
-                subject,
-                msgid,
-            )
-    OUTPUT += "#End of automatically added data"
-    end = time.time()
-    log.info("Took %s seconds." % (end - start))
-    log.info("Replacing dollar symbol...")
-    OUTPUT = OUTPUT.replace("$", "$$")
-    log.info(
-        "Opening file '%s' to output the resulted filter..."
-        % config["postfixheadercheckfile"]
-    )
-    try:
-        FILEH = open(config["postfixheadercheckfile"], "w")
-    except:
-        log.error("Error opening filter file to append new filter", True)
-        return False
-    log.info("Writting to disk...")
-    start = time.time()
-    FILEH.write("%s" % OUTPUT)
-    end = time.time()
-    log.info("Took %s seconds to write to disk." % (end - start))
-    FILEH.close()
-    log.info("Running postmap command on filter's file")
-    try:
-        OUTPUT = subprocess.check_output(
-            ["/usr/bin/sudo", "/usr/sbin/postmap", config["postfixheadercheckfile"]],
-            stderr=subprocess.STDOUT,
-            shell=False,
+    def add_filters_db(self, msg_id, original_mta, return_path, reply_to, subject):
+        """Ban servers and senders, by adding them to the database"""
+        mta_id = False
+        RPID = False
+        RTID = False
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            charset="utf8",
+            use_unicode=True,
         )
-    except subprocess.CalledProcessError:
-        log.info(OUTPUT, True)
-        log.error("Error indexing postfix filter file", True)
-        return False
-    log.info("Reloading postfix...")
-    try:
-        OUTPUT = subprocess.check_output(
-            ["/usr/bin/sudo", "/usr/sbin/postfix", "reload"],
-            stderr=subprocess.STDOUT,
-            shell=False,
-        )
-    except subprocess.CalledProcessError:
-        log.info(OUTPUT, True)
-        log.error("Error reloading postfix settings", True)
-        return False
-    return True
+        cursor = conn.cursor(buffered=True)
 
-
-def add_filters_db(msg_id, original_mta, return_path, reply_to, subject):
-    """Ban servers and senders, by adding them to the database"""
-    mtaID = False
-    RPID = False
-    RTID = False
-    conn = mysql.connector.connect(
-        host=config["dbserver"],
-        user=config["dbuser"],
-        passwd=config["dbpass"],
-        db=config["dbname"],
-        charset="utf8",
-        use_unicode=True,
-    )
-    cursor = conn.cursor(buffered=True)
-
-    # Server ban
-    log.info("Banning MTA %s..." % original_mta)
-    cursor.execute(
-        "SELECT id FROM bannedservers WHERE server = %s", params=(original_mta,)
-    )
-    if cursor.rowcount < 1:
+        # Server ban
+        self._log.info("Banning MTA %s..." % original_mta)
         cursor.execute(
-            "INSERT INTO bannedservers (server, frommsgid)" "VALUES (%s, %s)",
-            params=(original_mta, msg_id),
-        )
-        mtaID = cursor.lastrowid
-    else:
-        cursor.execute(
-            "UPDATE bannedservers SET banned = 1 " "WHERE server = %s",
-            params=(original_mta,),
-        )
-        log.info("Mail transport agent already in the database, banning it " "again.")
-        mtaID = True
-
-    # Senders ban
-    # Check if the reply_to is a user in the server
-    cursor.execute("SELECT email from users where email = '{}'".format(reply_to))
-    if cursor.rowcount < 1:
-        log.info("Banning sender %s..." % reply_to)
-        cursor.execute("SELECT id FROM bannedsenders WHERE sender = %s;", (reply_to,))
-        if cursor.rowcount < 1:
-            cursor.execute(
-                "INSERT INTO bannedsenders (sender, frommsgid) " "VALUES (%s, %s)",
-                (reply_to.lower(), msg_id),
-            )
-            RTID = cursor.lastrowid
-        else:
-            cursor.execute(
-                "UPDATE bannedsenders SET banned = 1 " "WHERE sender = %s",
-                params=(reply_to,),
-            )
-            log.info("Reply To address already in the database")
-            RTID = True
-    # Check if the return path is a user in the server
-    cursor.execute("SELECT email from users where email = '{}'".format(return_path))
-    if cursor.rowcount < 1:
-        log.info("Banning sender %s..." % return_path)
-        cursor.execute(
-            "SELECT id FROM bannedsenders " "WHERE sender = %s", params=(return_path,)
+            "SELECT id FROM bannedservers WHERE server = %s", params=(original_mta,)
         )
         if cursor.rowcount < 1:
             cursor.execute(
-                "INSERT INTO bannedsenders (sender, frommsgid) " "VALUES (%s, %s)",
-                params=(return_path.lower(), msg_id),
+                "INSERT INTO bannedservers (server, frommsgid)" "VALUES (%s, %s)",
+                params=(original_mta, msg_id),
             )
-            RPID = cursor.lastrowid
+            mta_id = cursor.lastrowid
         else:
             cursor.execute(
-                "UPDATE bannedsenders SET banned = 1 " "WHERE sender = %s",
-                params=(return_path,),
+                "UPDATE bannedservers SET banned = 1 " "WHERE server = %s",
+                params=(original_mta,),
             )
-            log.info(
-                "Return path address already in the database, " "banning it again."
+            self._log.info(
+                "Mail transport agent already in the database, banning it again."
             )
-            RPID = True
+            mta_id = True
 
-    # Subject ban
-    decoded_subject = (
-        subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
-    )
-    log.debug("Decoded subject: %s" % decoded_subject)
-    if decoded_subject not in config["excluded_filters"]:
-        if number_of_words(decoded_subject) > config["subject_min_words"]:
-            log.info("Banning subjects like '{}'...".format(decoded_subject))
+        # Senders ban
+        # Check if the reply_to is a user in the server
+        cursor.execute("SELECT email from users where email = '{}'".format(reply_to))
+        if cursor.rowcount < 1:
+            self._log.info("Banning sender %s..." % reply_to)
             cursor.execute(
-                "SELECT id, count FROM bannedsubjects " "WHERE subject = %s",
-                params=(decoded_subject,),
+                "SELECT id FROM bannedsenders WHERE sender = %s;", (reply_to,)
             )
             if cursor.rowcount < 1:
                 cursor.execute(
-                    "INSERT INTO bannedsubjects (subject, frommsgid) "
-                    "VALUES (%s, %s)",
-                    params=(decoded_subject, msg_id),
-                )
-                log.info(
-                    "New spam subject '%s' added to the database." % decoded_subject
+                    "INSERT INTO bannedsenders (sender, frommsgid) " "VALUES (%s, %s)",
+                    (reply_to.lower(), msg_id),
                 )
                 RTID = cursor.lastrowid
             else:
-                ROW = cursor.fetchall()[0]
                 cursor.execute(
-                    "UPDATE bannedsubjects SET count = %s " "WHERE subject = %s",
-                    params=(ROW[1] + 1, decoded_subject),
+                    "UPDATE bannedsenders SET banned = 1 " "WHERE sender = %s",
+                    params=(reply_to,),
                 )
-                log.info(
-                    "Subject '%s' already in the database, "
-                    "added count to %s" % (decoded_subject, str(ROW[1] + 1))
-                )
+                self._log.info("Reply To address already in the database")
                 RTID = True
+        # Check if the return path is a user in the server
+        cursor.execute("SELECT email from users where email = '{}'".format(return_path))
+        if cursor.rowcount < 1:
+            self._log.info("Banning sender %s..." % return_path)
+            cursor.execute(
+                "SELECT id FROM bannedsenders " "WHERE sender = %s",
+                params=(return_path,),
+            )
+            if cursor.rowcount < 1:
+                cursor.execute(
+                    "INSERT INTO bannedsenders (sender, frommsgid) " "VALUES (%s, %s)",
+                    params=(return_path.lower(), msg_id),
+                )
+                RPID = cursor.lastrowid
+            else:
+                cursor.execute(
+                    "UPDATE bannedsenders SET banned = 1 " "WHERE sender = %s",
+                    params=(return_path,),
+                )
+                self._log.info(
+                    "Return path address already in the database, " "banning it again."
+                )
+                RPID = True
+
+        # Subject ban
+        decoded_subject = (
+            subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
+        )
+        self._log.debug("Decoded subject: %s" % decoded_subject)
+        if decoded_subject not in self.config["excluded_filters"]:
+            if self.number_of_words(decoded_subject) > self.config["subject_min_words"]:
+                self._log.info("Banning subjects like '{}'...".format(decoded_subject))
+                cursor.execute(
+                    "SELECT id, count FROM bannedsubjects " "WHERE subject = %s",
+                    params=(decoded_subject,),
+                )
+                if cursor.rowcount < 1:
+                    cursor.execute(
+                        "INSERT INTO bannedsubjects (subject, frommsgid) "
+                        "VALUES (%s, %s)",
+                        params=(decoded_subject, msg_id),
+                    )
+                    self._log.info(
+                        "New spam subject '%s' added to the database." % decoded_subject
+                    )
+                    RTID = cursor.lastrowid
+                else:
+                    ROW = cursor.fetchall()[0]
+                    cursor.execute(
+                        "UPDATE bannedsubjects SET count = %s " "WHERE subject = %s",
+                        params=(ROW[1] + 1, decoded_subject),
+                    )
+                    self._log.info(
+                        "Subject '%s' already in the database, "
+                        "added count to %s" % (decoded_subject, str(ROW[1] + 1))
+                    )
+                    RTID = True
+            else:
+                self._log.debug(
+                    "Subject '{}' won't be banned, because it's too short.".format(
+                        decoded_subject
+                    )
+                )
         else:
-            log.debug(
-                "Subject '{}' won't be banned, because it's too short.".format(
+            self._log.debug(
+                "Subject '{}' won't be banned, because is in the list not to filter.".format(
                     decoded_subject
                 )
             )
-    else:
-        log.debug(
-            "Subject '{}' won't be banned, because is in the list not to filter.".format(
-                decoded_subject
-            )
-        )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return mtaID, RPID, RTID
-
-
-def already_notified(mta, MAIL):
-    """Check if a mail transport agent owner was already notified"""
-    log.info(
-        "Checking if we already sent a notification to %s " "regarding %s" % (MAIL, mta)
-    )
-    conn = mysql.connector.connect(
-        host=config["dbserver"],
-        user=config["dbuser"],
-        passwd=config["dbpass"],
-        db=config["dbname"],
-        charset="utf8",
-        use_unicode=True,
-    )
-    cursor = conn.cursor(buffered=True)
-    mta_MAIL = "%s_%s" % (mta, MAIL)
-    cursor.execute(
-        "SELECT mta_mail FROM notifiedmtas " "WHERE mta_mail = %s;", (mta_MAIL,)
-    )
-    if cursor.rowcount > 0:
-        log.info("We already sent a notification to %s " "regarding %s" % (MAIL, mta))
+        conn.commit()
         cursor.close()
         conn.close()
+        return mta_id, RPID, RTID
+
+    def already_notified(self, mta, mail):
+        """Check if a mail transport agent owner was already notified"""
+        self._log.info(
+            "Checking if we already sent a notification to %s "
+            "regarding %s" % (mail, mta)
+        )
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            charset="utf8",
+            use_unicode=True,
+        )
+        cursor = conn.cursor(buffered=True)
+        mta_mail = "%s_%s" % (mta, mail)
+        cursor.execute(
+            "SELECT mta_mail FROM notifiedmtas " "WHERE mta_mail = %s;", (mta_mail,)
+        )
+        if cursor.rowcount > 0:
+            self._log.info(
+                "We already sent a notification to %s " "regarding %s" % (mail, mta)
+            )
+            cursor.close()
+            conn.close()
+            return True
+        else:
+            self._log.info(
+                "We didn't send a notification to %s " "regarding %s" % (mail, mta)
+            )
+            return False
+
+    def add_notification(self, mta, mail):
+        """Add the notification of an owner to the database"""
+        self._log.info(
+            "Adding that we sent a notification to %s regarding " "%s" % (mail, mta)
+        )
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            charset="utf8",
+            use_unicode=True,
+        )
+        cursor = conn.cursor(buffered=True)
+        mta_mail = "%s_%s" % (mta, mail)
+        cursor.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);", (mta_mail,))
+        RTID = cursor.lastrowid
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return RTID
+
+    def number_of_words(self, text):
+        if isinstance(text, bytes):
+            list = re.split(r"\W+", text.decode())
+        else:
+            list = re.split(r"\W+", text)
+        return len(list)
+
+    def _get_config(self):
+        parser = argparse.ArgumentParser(
+            description="Examine messages marked as "
+            "spam in an IMAP folder, add mail filters"
+            " to similar messages and notify owners "
+            "of the mail servers used."
+        )
+        parser.add_argument(
+            "--excluded-filters",
+            dest="excluded_filters",
+            action="append",
+            help="List of subjects not to filter out. Any subject filter that match a member of this list won't be added.",
+        )
+        parser.add_argument(
+            "--excluded-mta",
+            dest="excluded_mtas",
+            action="append",
+            help="Mail Transport Agent to exclude " "(usually does you trust)",
+        )
+        parser.add_argument(
+            "--sender",
+            dest="sender",
+            default="gestor@susurrando.com",
+            help="From email for notifications to spammy servers.",
+        )
+        parser.add_argument(
+            "--imap-filter",
+            dest="imapfilter",
+            default="(UNSEEN)",
+            help="Filter to find messages in the IMAP server.",
+        )
+        parser.add_argument(
+            "--postfix-header-check-file",
+            dest="postfixheadercheckfile",
+            default="/etc/postfix/maps/spam_filter_header_check",
+            help="File to store mail filters for postfix "
+            "(Should be declared in /etc/postfix/main.cf in "
+            "the header_checks parameter)",
+        )
+        parser.add_argument(
+            "--debug",
+            dest="debug",
+            default="WARNING",
+            help="Set debug level (CRITICAL, " "ERROR, WARNING, INFO, DEBUG, NOTSET)",
+        )
+        parser.add_argument(
+            "--csv", dest="csv", default=False, help="Output to CSV format"
+        )
+        parser.add_argument(
+            "--imap-server",
+            dest="imapserver",
+            default="localhost",
+            help="IMAP server to get spam messages.",
+        )
+        parser.add_argument(
+            "--imap-port",
+            dest="imapport",
+            default="993",
+            help="IMAP port of the server.",
+        )
+        parser.add_argument(
+            "--imap-password", dest="imappassword", help="Password of the IMAP user."
+        )
+        parser.add_argument("--imap-user", dest="imapuser", help="IMAP user name.")
+        parser.add_argument(
+            "--imap-password-file",
+            dest="imappasswordfile",
+            help="File containing the IMAP user's password",
+        )
+        parser.add_argument(
+            "--imap-mailbox",
+            dest="imapmailbox",
+            default="INBOX",
+            help="IMAP mailbox (folder) where spam messages are " "located.",
+        )
+        parser.add_argument(
+            "--ssl",
+            dest="ssl",
+            default=False,
+            help="Use an SSL connection to self.IMAP.",
+        )
+        parser.add_argument(
+            "--configfile",
+            dest="configfile",
+            help="Config file to overwrite parameters " "from the command line",
+        )
+        parser.add_argument("--db-user", dest="dbuser", help="Database user name.")
+        parser.add_argument(
+            "--db-pass",
+            dest="dbpass",
+            help="(NOT RECOMMENDED) Database user's password.",
+        )
+        parser.add_argument(
+            "--db-pass-file",
+            dest="dbpassfile",
+            help="File containing the database user's password.",
+        )
+        parser.add_argument(
+            "--db-name", dest="dbname", default="mail", help="Database name."
+        )
+        parser.add_argument(
+            "--db-table",
+            dest="dbtable",
+            default="spamheaders",
+            help="Database user name.",
+        )
+        parser.add_argument(
+            "--db-server", dest="dbserver", default="localhost", help="Database server."
+        )
+        parser.add_argument(
+            "--subject_min_words",
+            dest="subject_min_words",
+            default=2,
+            help="Minimum number of words in a subject to be banned.",
+        )
+        args = parser.parse_args()
+        config = vars(args)
+        if "configfile" in self.config and self.config["configfile"] is not None:
+            configfile = json.load(open(self.config["configfile"], "r"))
+            config = {**config, **configfile}
+
+        if (
+            "imappasswordfile" in self.config
+            and self.config["imappasswordfile"] is not None
+        ):
+            with open(self.config["imappasswordfile"], "r") as fp:
+                imappassword = fp.read()
+            if imappassword != "":
+                self.config["imappassword"] = imappassword.strip()
+                self._log.debug(
+                    "IMAP password obtained from password file %s"
+                    % self.config["imappasswordfile"]
+                )
+
+        if "dbpassfile" in self.config and self.config["dbpassfile"] is not None:
+            with open(self.config["dbpassfile"], "r") as fp:
+                dbpassfile = fp.read()
+            if dbpassfile != "":
+                self.config["dbpass"] = dbpassfile.strip()
+                self._log.debug(
+                    "Database password obtained from password file %s"
+                    % self.config["dbpassfile"]
+                )
         return True
-    else:
-        log.info("We didn't send a notification to %s " "regarding %s" % (MAIL, mta))
-        return False
 
-
-def add_notification(mta, MAIL):
-    """Add the notification of an owner to the database"""
-    log.info("Adding that we sent a notification to %s regarding " "%s" % (MAIL, mta))
-    conn = mysql.connector.connect(
-        host=config["dbserver"],
-        user=config["dbuser"],
-        passwd=config["dbpass"],
-        db=config["dbname"],
-        charset="utf8",
-        use_unicode=True,
-    )
-    cursor = conn.cursor(buffered=True)
-    mta_MAIL = "%s_%s" % (mta, MAIL)
-    cursor.execute("INSERT INTO notifiedmtas (mta_mail) VALUES ( %s);", (mta_MAIL,))
-    RTID = cursor.lastrowid
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return RTID
-
-
-def number_of_words(text):
-    if isinstance(text, bytes):
-        list = re.split("\W+", text.decode())
-    else:
-        list = re.split("\W+", text)
-    return len(list)
-
-
-def main():
-    global config
-    global NEWDATA
-    global log
-    count_sent_warnings = 0
-    starttime = time.time()
-    log = logging.getLogger()
-    log.setLevel(logging.getLevelName("DEBUG"))
-
-    sysloghandler = SysLogHandler()
-    sysloghandler.setLevel(logging.getLevelName("DEBUG"))
-    log.addHandler(sysloghandler)
-
-    streamhandler = logging.StreamHandler(sys.stdout)
-    streamhandler.setLevel(logging.getLevelName("DEBUG"))
-    log.addHandler(streamhandler)
-
-    parser = argparse.ArgumentParser(
-        description="Examine messages marked as "
-        "spam in an IMAP folder, add mail filters"
-        " to similar messages and notify owners "
-        "of the mail servers used."
-    )
-    parser.add_argument(
-        "--excluded-filters",
-        dest="excluded_filters",
-        action="append",
-        help="List of subjects not to filter out. Any subject filter that match a member of this list won't be added.",
-    )
-    parser.add_argument(
-        "--excluded-mta",
-        dest="excluded_mtas",
-        action="append",
-        help="Mail Transport Agent to exclude " "(usually does you trust)",
-    )
-    parser.add_argument(
-        "--sender",
-        dest="sender",
-        default="gestor@susurrando.com",
-        help="From email for notifications to spammy servers.",
-    )
-    parser.add_argument(
-        "--imap-filter",
-        dest="imapfilter",
-        default="(UNSEEN)",
-        help="Filter to find messages in the IMAP server.",
-    )
-    parser.add_argument(
-        "--postfix-header-check-file",
-        dest="postfixheadercheckfile",
-        default="/etc/postfix/maps/spam_filter_header_check",
-        help="File to store mail filters for postfix "
-        "(Should be declared in /etc/postfix/main.cf in "
-        "the header_checks parameter)",
-    )
-    parser.add_argument(
-        "--debug",
-        dest="debug",
-        default="WARNING",
-        help="Set debug level (CRITICAL, " "ERROR, WARNING, INFO, DEBUG, NOTSET)",
-    )
-    parser.add_argument("--csv", dest="csv", default=False, help="Output to CSV format")
-    parser.add_argument(
-        "--imap-server",
-        dest="imapserver",
-        default="localhost",
-        help="IMAP server to get spam messages.",
-    )
-    parser.add_argument(
-        "--imap-port", dest="imapport", default="993", help="IMAP port of the server."
-    )
-    parser.add_argument(
-        "--imap-password", dest="imappassword", help="Password of the IMAP user."
-    )
-    parser.add_argument("--imap-user", dest="imapuser", help="IMAP user name.")
-    parser.add_argument(
-        "--imap-password-file",
-        dest="imappasswordfile",
-        help="File containing the IMAP user's password",
-    )
-    parser.add_argument(
-        "--imap-mailbox",
-        dest="imapmailbox",
-        default="INBOX",
-        help="IMAP mailbox (folder) where spam messages are " "located.",
-    )
-    parser.add_argument(
-        "--ssl", dest="ssl", default=False, help="Use an SSL connection to IMAP."
-    )
-    parser.add_argument(
-        "--configfile",
-        dest="configfile",
-        help="Config file to overwrite parameters " "from the command line",
-    )
-    parser.add_argument("--db-user", dest="dbuser", help="Database user name.")
-    parser.add_argument(
-        "--db-pass", dest="dbpass", help="(NOT RECOMMENDED) Database user's password."
-    )
-    parser.add_argument(
-        "--db-pass-file",
-        dest="dbpassfile",
-        help="File containing the database user's password.",
-    )
-    parser.add_argument(
-        "--db-name", dest="dbname", default="mail", help="Database name."
-    )
-    parser.add_argument(
-        "--db-table", dest="dbtable", default="spamheaders", help="Database user name."
-    )
-    parser.add_argument(
-        "--db-server", dest="dbserver", default="localhost", help="Database server."
-    )
-    parser.add_argument(
-        "--subject_min_words",
-        dest="subject_min_words",
-        default=2,
-        help="Minimum number of words in a subject to be banned.",
-    )
-    args = parser.parse_args()
-    config = vars(args)
-    if config["configfile"] is not None:
-        configfile = json.load(open(config["configfile"], "r"))
-        config = {**config, **configfile}
-
-    if config["imappasswordfile"] is not None:
-        with open(config["imappasswordfile"], "r") as fp:
-            imappassword = fp.read()
-        if imappassword != "":
-            config["imappassword"] = imappassword.strip()
-            log.debug(
-                "IMAP password obtained from password file %s"
-                % config["imappasswordfile"]
-            )
-
-    if config["dbpassfile"] is not None:
-        with open(config["dbpassfile"], "r") as fp:
-            dbpassfile = fp.read()
-        if dbpassfile != "":
-            config["dbpass"] = dbpassfile.strip()
-            log.debug(
-                "Database password obtained from password file %s"
-                % config["dbpassfile"]
-            )
-
-    log.setLevel(logging.getLevelName(config["debug"]))
-
-    if config["ssl"]:
-        PROTO = "imaps"
-    else:
-        PROTO = "imap"
-    log.info(
-        "Connecting to %s://%s:%s/ ..."
-        % (PROTO, config["imapserver"], config["imapport"])
-    )
-    if config["ssl"]:
-        try:
-            IMAP = imaplib.IMAP4_SSL(config["imapserver"], config["imapport"])
-        except:
-            log.error(
-                "Error connecting to '%s:%s'."
-                % (config["imapserver"], config["imapport"])
-            )
-            sys.exit(1)
-    else:
-        try:
-            IMAP = imaplib.IMAP4(config["imapserver"], config["imapport"])
-        except:
-            log.error(
-                "Error connecting to '%s:%s'."
-                % (config["imapserver"], config["imapport"])
-            )
-            sys.exit(1)
-    log.info("Identifying as %s..." % config["imapuser"])
-    try:
-        IMAP.login(config["imapuser"], config["imappassword"])
-    except imaplib.IMAP4.error as e:
-        log.error(
-            "Error login as '%s:%s@%s:%s'. %s"
-            % (config["imapuser"], config["imapserver"], config["imapport"], e)
-        )
-        sys.exit(1)
-    log.info("Selecting mailbox %s..." % config["imapmailbox"])
-    try:
-        STATUS, DATA = IMAP.select(config["imapmailbox"], True)
-    except imaplib.IMAP4.error as e:
-        log.error(
-            "Error selecting mailbox '%s@%s:%s/%s'. Server message: %s"
+    def _get_imap_connection(self):
+        if "ssl" in self.config and self.config["ssl"]:
+            self.PROTO = "imaps"
+        else:
+            self.PROTO = "imap"
+        self._log.info(
+            "Connecting to %s://%s:%s/ ..."
             % (
-                config["imapuser"],
-                config["imapserver"],
-                config["imapport"],
-                config["imapmailbox"],
-                e,
+                self.PROTO,
+                self.config.get("imapserver", ""),
+                self.config.get("imapport", ""),
             )
         )
-        IMAP.close()
-        IMAP.logout()
-        sys.exit(1)
-    if STATUS == "NO":
-        log.error(
-            "Server report an error selecting mailbox. Server response: %s" % DATA[0]
-        )
-    else:
-        log.info("Looking for messages...")
+        if "ssl" in self.config and self.config["ssl"]:
+            try:
+                IMAP = imaplib.IMAP4_SSL(
+                    self.config["imapserver"], self.config["imapport"]
+                )
+            except:
+                self._log.error(
+                    "Error connecting to '%s:%s'."
+                    % (self.config["imapserver"], self.config["imapport"])
+                )
+                sys.exit(1)
+        else:
+            try:
+                self.IMAP = imaplib.IMAP4(
+                    self.config["imapserver"], self.config["imapport"]
+                )
+            except:
+                self._log.error(
+                    "Error connecting to '%s:%s'."
+                    % (self.config["imapserver"], self.config["imapport"])
+                )
+                sys.exit(1)
+        self._log.info("Identifying as %s..." % self.config["imapuser"])
         try:
-            STATUS, IDATA = IMAP.search(None, config["imapfilter"])
+            self.IMAP.login(self.config["imapuser"], self.config["imappassword"])
         except imaplib.IMAP4.error as e:
-            log.error(
-                "Error looking for messages in mailbox '%s://%s@%s:%s/%s'. "
-                "Server message: %s"
+            self._log.error(
+                "Error login as '%s:%s@%s:%s'. %s"
                 % (
-                    PROTO,
-                    config["imapuser"],
-                    config["imapserver"],
-                    config["imapport"],
-                    config["imapmailbox"],
+                    self.config["imapuser"],
+                    self.config["imapserver"],
+                    self.config["imapport"],
                     e,
                 )
             )
-            IMAP.logout()
             sys.exit(1)
-        log.info("Received: Status: %s Data: %s" % (STATUS, IDATA))
+        return True
+
+    def _find_messages(self):
+        self._log.info("Looking for messages...")
+        try:
+            STATUS, IDATA = self.IMAP.search(None, self.config["imapfilter"])
+        except imaplib.IMAP4.error as e:
+            self._log.error(
+                "Error looking for messages in mailbox '%s://%s@%s:%s/%s'. "
+                "Server message: %s"
+                % (
+                    self.PROTO,
+                    self.config["imapuser"],
+                    self.config["imapserver"],
+                    self.config["imapport"],
+                    self.config["imapmailbox"],
+                    e,
+                )
+            )
+            self.IMAP.close()
+            self.IMAP.logout()
+            sys.exit(1)
+        return STATUS, IDATA
+
+    def _remove_processed_messages(self, IDS):
+        for ID in IDS:
+            try:
+                self.IMAP.store(ID, "+FLAGS", "(\\Seen)")
+            except imaplib.IMAP4.error as e:
+                self._log.error("Error marking message as read. %s", e)
+            try:
+                self.IMAP.store(ID, "+FLAGS", "(\\Deleted)")
+            except imaplib.IMAP4.error as e:
+                self._log.error("Error marking message as deleted. %s", e)
+                return False
+            self.IMAP.expunge()
+        return True
+
+    def __init__(self):
+        self.config = dict()
+        count_sent_warnings = 0
+        starttime = time.time()
+        self._log = logging.getLogger()
+        self._log.setLevel(logging.getLevelName("DEBUG"))
+
+        sysloghandler = SysLogHandler()
+        sysloghandler.setLevel(logging.getLevelName("DEBUG"))
+        self._log.addHandler(sysloghandler)
+
+        streamhandler = logging.StreamHandler(sys.stdout)
+        streamhandler.setLevel(logging.getLevelName("DEBUG"))
+        self._log.addHandler(streamhandler)
+
+        self._get_config()
+
+        if "debug" in self.config:
+            self._log.setLevel(logging.getLevelName(self.config["debug"]))
+        else:
+            self._log.setLevel(logging.getLevelName("INFO"))
+
+        self._get_imap_connection()
+
+        self._log.info("Selecting mailbox %s..." % self.config["imapmailbox"])
+        try:
+            STATUS, DATA = self.IMAP.select(self.config["imapmailbox"], True)
+        except imaplib.IMAP4.error as e:
+            self._log.error(
+                "Error selecting mailbox '%s@%s:%s/%s'. Server message: %s"
+                % (
+                    self.config["imapuser"],
+                    self.config["imapserver"],
+                    self.config["imapport"],
+                    self.config["imapmailbox"],
+                    e,
+                )
+            )
+            self.IMAP.close()
+            self.IMAP.logout()
+            sys.exit(1)
+        if STATUS == "NO":
+            self._log.error(
+                "Server report an error selecting mailbox. Server response: %s"
+                % DATA[0]
+            )
+            self.IMAP.close()
+            self.IMAP.logout()
+            sys.exit(1)
+        STATUS, IDATA = self._find_messages()
+        self._log.info("Received: Status: %s Data: %s" % (STATUS, IDATA))
         msg_id = ""
         FROM = ""
         reply_to = ""
         return_path = ""
         subject = ""
-        if config["csv"]:
+        if self.config["csv"]:
             print("msg_id;original_mta;return_path;reply_to;FROM;subject")
         if IDATA == b"":
-            log.warning(
+            self._log.warning(
                 "No messages match the filter '%s' in the folder '%s'."
-                % (config["imapfilter"], config["imapmailbox"])
+                % (self.config["imapfilter"], self.config["imapmailbox"])
             )
         else:
             IDS = IDATA[0].split()
@@ -760,30 +831,32 @@ def main():
             count = 0
             for ID in IDS:
                 count = count + 1
-                log.info(
+                self._log.info(
                     "Getting headers of message %s (%s/%s)" % (ID, count, totalmessages)
                 )
                 try:
-                    STATUS, DATA = IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
+                    STATUS, DATA = self.IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
                 except:
-                    log.error("Error fetching messages headers")
-                log.info("Received. Status: %s Data %s" % (STATUS, DATA))
+                    self._log.error("Error fetching messages headers")
+                self._log.info("Received. Status: %s Data %s" % (STATUS, DATA))
                 if STATUS == "NO":
-                    log.error(
+                    self._log.error(
                         "Error fetching message headers, servers " "reponse '%s'" % DATA
                     )
                 else:
-                    log.info("message flagged as junk mail, processing")
+                    self._log.info("message flagged as junk mail, processing")
                     HEADERS = DATA[0][1].decode("utf-8")
-                    NEWDATA = (
+                    newdata = (
                         HEADERS.replace("\r", "")
                         .replace("\n ", " ")
                         .replace("\n\t", " ")
                     )
-                    original_mta = get_original_mta(NEWDATA)
+                    original_mta = self.get_original_mta(newdata)
                     if original_mta != "":
-                        log.info("Located the original server as %s" % original_mta)
-                        HEADERS = NEWDATA.splitlines()
+                        self._log.info(
+                            "Located the original server as %s" % original_mta
+                        )
+                        HEADERS = newdata.splitlines()
                         for HEADER in HEADERS:
                             LHEADER = HEADER.split(": ", 1)
                             HEADERNAME = LHEADER[0].lower()
@@ -793,24 +866,26 @@ def main():
                                 HEADERVALUE = ""
                             if HEADERNAME == "message-id":
                                 msg_id = HEADERVALUE.replace("<", "").replace(">", "")
-                                log.info("Located message id as %s" % msg_id)
+                                self._log.info("Located message id as %s" % msg_id)
                             if HEADERNAME == "return-path":
-                                return_pathS = get_emails_from_text(HEADERVALUE)
+                                return_pathS = self.get_emails_from_text(HEADERVALUE)
                                 for return_path in return_pathS:
-                                    log.info(
+                                    self._log.info(
                                         "Located message return path as %s"
                                         % return_path
                                     )
                             if HEADERNAME == "reply-to":
-                                reply_toS = get_emails_from_text(HEADERVALUE)
+                                reply_toS = self.get_emails_from_text(HEADERVALUE)
                                 for reply_to in reply_toS:
-                                    log.info(
+                                    self._log.info(
                                         "Located message reply to as %s" % reply_to
                                     )
                             if HEADERNAME == "from":
-                                FROMS = get_emails_from_text(HEADERVALUE)
+                                FROMS = self.get_emails_from_text(HEADERVALUE)
                                 for FROM in FROMS:
-                                    log.info("Located message sender as %s" % FROM)
+                                    self._log.info(
+                                        "Located message sender as %s" % FROM
+                                    )
                             if HEADERNAME == "subject" and subject == "":
                                 try:
                                     DECsubjectS = email.header.decode_header(
@@ -833,9 +908,11 @@ def main():
                                     subject = subject.decode("iso-8859-1").encode(
                                         "utf8", "replace"
                                     )
-                                log.info("Located message subject as %s" % subject)
+                                self._log.info(
+                                    "Located message subject as %s" % subject
+                                )
 
-                        if config["csv"]:
+                        if self.config["csv"]:
                             print(
                                 "%s;%s;%s;%s;%s;%s"
                                 % (
@@ -847,7 +924,7 @@ def main():
                                     subject.lstrip(),
                                 )
                             )
-                        add_filters(
+                        self.add_filters(
                             msg_id,
                             original_mta,
                             return_path,
@@ -856,42 +933,37 @@ def main():
                             subject,
                         )
                     else:
-                        log.warning("Couldn't find the original server")
-            for ID in IDS:
-                try:
-                    IMAP.store(ID, "+FLAGS", "(\\Seen)")
-                except:
-                    log.error("Error marking message as read")
-                try:
-                    IMAP.store(ID, "+FLAGS", "(\\Deleted)")
-                except:
-                    log.error("Error marking message as deleted")
-                IMAP.expunge()
+                        self._log.warning("Couldn't find the original server")
+            self._remove_processed_messages(IDS)
             try:
-                IMAP.close()
-            except:
-                log.error("Error closing connection")
-        log.info("Updating postfix filters.")
-        if not add_filter_postfix():
-            log.error("Error adding filters to postfix")
-    try:
-        log.info("Disconnecting from the IMAP server.")
-        IMAP.logout()
-    except:
-        log.error("Error closing connection")
+                self.IMAP.close()
+            except imaplib.IMAP4.error as e:
+                self._log.error("Error closing connection. %s", e)
+            self._log.info("Updating postfix filters.")
+            if not self.add_filter_postfix():
+                self._log.error("Error adding filters to postfix")
+        try:
+            self._log.info("Disconnecting from the IMAP server.")
+            self.IMAP.logout()
+            self.IMAP.close()
+        except:
+            self._log.error("Error closing connection")
 
-    log.info("%s warnings were sent." % count_sent_warnings)
-    message = """From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n
-    %s spam warnings were sent by
-    update-spam-filter.""" % (
-        config["sender"],
-        config["sender"],
-        count_sent_warnings,
-    )
-    server = smtplib.SMTP("localhost")
-    server.sendmail(config["sender"], config["sender"], message)
-    server.quit()
+        endtime = time.time()
+        elapsedtimes = endtime - starttime
+        self._log.info("%s warnings were sent." % count_sent_warnings)
+        message = """From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n
+        %s spam warnings were sent by
+        update-spam-filter in %s seconds.""" % (
+            self.config["sender"],
+            self.config["sender"],
+            count_sent_warnings,
+            elapsedtimes,
+        )
+        server = smtplib.SMTP("localhost")
+        server.sendmail(self.config["sender"], self.config["sender"], message)
+        server.quit()
 
 
 if __name__ == "__main__":
-    main()
+    update_spam_filter()

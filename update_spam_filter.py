@@ -762,6 +762,83 @@ class update_spam_filter:
             self.IMAP.expunge()
         return True
 
+    def _process_message(self, ID):
+        try:
+            STATUS, DATA = self.IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
+        except imaplib.IMAP4.error as e:
+            self._log.error("Error fetching messages headers. %s" % e)
+        self._log.info("Received. Status: %s Data %s" % (STATUS, DATA))
+        if STATUS == "NO":
+            self._log.error(
+                "Error fetching message headers, servers " "reponse '%s'" % DATA
+            )
+            return False
+        self._log.info("message flagged as junk mail, processing")
+        HEADERS = DATA[0][1].decode("utf-8")
+        parser = email.header.HeaderParser()
+        msg = parser.parsestr(DATA[0][1])
+        msg_id = msg["Message-Id"].replace("<", "").replace(">", "")
+        return_pathS = self.get_emails_from_text(msg.get("Return-Path", ""))
+        for return_path in return_pathS:
+            self._log.info("Located message return path as %s" % return_path)
+        reply_toS = self.get_emails_from_text(msg.get("Reply-To", ""))
+        for reply_to in reply_toS:
+            self._log.info("Located message reply to as %s" % reply_to)
+        FROMS = self.get_emails_from_text(msg.get("From", ""))
+        for FROM in FROMS:
+            self._log.info("Located message sender as %s" % FROM)
+        try:
+            DECsubjectS = email.header.decode_header(msg.get("Subject", ""))
+        except:
+            DECsubjectS = ""
+        for DECsubject in DECsubjectS:
+            PARTIALsubject, ENCODING = DECsubject
+            if ENCODING is None:
+                subject = "%s %s" % (subject, PARTIALsubject)
+            else:
+                subject = "%s %s" % (
+                    subject,
+                    PARTIALsubject.decode(ENCODING, "replace"),
+                )
+        try:
+            subject = subject.encode("utf8", "replace")
+        except UnicodeDecodeError:
+            subject = subject.decode("iso-8859-1").encode("utf8", "replace")
+        self._log.info("Located message subject as %s" % subject)
+
+        newdata = HEADERS.replace("\r", "")
+        newdata = newdata.replace("\n ", " ")
+        newdata = newdata.replace("\n\t", " ")
+        original_mta = self.get_original_mta(newdata)
+        if original_mta != "":
+            self._log.info("Located the original server as %s" % original_mta)
+            HEADERS = newdata.splitlines()
+            for HEADER in HEADERS:
+                LHEADER = HEADER.split(": ", 1)
+                HEADERNAME = LHEADER[0].lower()
+                try:
+                    HEADERVALUE = LHEADER[1]
+                except IndexError:
+                    HEADERVALUE = ""
+
+            if self.config["csv"]:
+                print(
+                    "%s;%s;%s;%s;%s;%s"
+                    % (
+                        msg_id,
+                        original_mta,
+                        return_path,
+                        reply_to,
+                        FROM,
+                        subject.lstrip(),
+                    )
+                )
+            self.add_filters(
+                msg_id, original_mta, return_path, reply_to, HEADERS, subject
+            )
+        else:
+            self._log.warning("Couldn't find the original server")
+
     def __init__(self):
         self.config = dict()
         count_sent_warnings = 0
@@ -813,11 +890,6 @@ class update_spam_filter:
             sys.exit(1)
         STATUS, IDATA = self._find_messages()
         self._log.info("Received: Status: %s Data: %s" % (STATUS, IDATA))
-        msg_id = ""
-        FROM = ""
-        reply_to = ""
-        return_path = ""
-        subject = ""
         if self.config["csv"]:
             print("msg_id;original_mta;return_path;reply_to;FROM;subject")
         if IDATA == b"":
@@ -834,106 +906,7 @@ class update_spam_filter:
                 self._log.info(
                     "Getting headers of message %s (%s/%s)" % (ID, count, totalmessages)
                 )
-                try:
-                    STATUS, DATA = self.IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
-                except:
-                    self._log.error("Error fetching messages headers")
-                self._log.info("Received. Status: %s Data %s" % (STATUS, DATA))
-                if STATUS == "NO":
-                    self._log.error(
-                        "Error fetching message headers, servers " "reponse '%s'" % DATA
-                    )
-                else:
-                    self._log.info("message flagged as junk mail, processing")
-                    HEADERS = DATA[0][1].decode("utf-8")
-                    newdata = (
-                        HEADERS.replace("\r", "")
-                        .replace("\n ", " ")
-                        .replace("\n\t", " ")
-                    )
-                    original_mta = self.get_original_mta(newdata)
-                    if original_mta != "":
-                        self._log.info(
-                            "Located the original server as %s" % original_mta
-                        )
-                        HEADERS = newdata.splitlines()
-                        for HEADER in HEADERS:
-                            LHEADER = HEADER.split(": ", 1)
-                            HEADERNAME = LHEADER[0].lower()
-                            try:
-                                HEADERVALUE = LHEADER[1]
-                            except IndexError:
-                                HEADERVALUE = ""
-                            if HEADERNAME == "message-id":
-                                msg_id = HEADERVALUE.replace("<", "").replace(">", "")
-                                self._log.info("Located message id as %s" % msg_id)
-                            if HEADERNAME == "return-path":
-                                return_pathS = self.get_emails_from_text(HEADERVALUE)
-                                for return_path in return_pathS:
-                                    self._log.info(
-                                        "Located message return path as %s"
-                                        % return_path
-                                    )
-                            if HEADERNAME == "reply-to":
-                                reply_toS = self.get_emails_from_text(HEADERVALUE)
-                                for reply_to in reply_toS:
-                                    self._log.info(
-                                        "Located message reply to as %s" % reply_to
-                                    )
-                            if HEADERNAME == "from":
-                                FROMS = self.get_emails_from_text(HEADERVALUE)
-                                for FROM in FROMS:
-                                    self._log.info(
-                                        "Located message sender as %s" % FROM
-                                    )
-                            if HEADERNAME == "subject" and subject == "":
-                                try:
-                                    DECsubjectS = email.header.decode_header(
-                                        HEADERVALUE
-                                    )
-                                except:
-                                    DECsubjectS = ""
-                                for DECsubject in DECsubjectS:
-                                    PARTIALsubject, ENCODING = DECsubject
-                                    if ENCODING is None:
-                                        subject = "%s %s" % (subject, PARTIALsubject)
-                                    else:
-                                        subject = "%s %s" % (
-                                            subject,
-                                            PARTIALsubject.decode(ENCODING, "replace"),
-                                        )
-                                try:
-                                    subject = subject.encode("utf8", "replace")
-                                except UnicodeDecodeError:
-                                    subject = subject.decode("iso-8859-1").encode(
-                                        "utf8", "replace"
-                                    )
-                                self._log.info(
-                                    "Located message subject as %s" % subject
-                                )
-
-                        if self.config["csv"]:
-                            print(
-                                "%s;%s;%s;%s;%s;%s"
-                                % (
-                                    msg_id,
-                                    original_mta,
-                                    return_path,
-                                    reply_to,
-                                    FROM,
-                                    subject.lstrip(),
-                                )
-                            )
-                        self.add_filters(
-                            msg_id,
-                            original_mta,
-                            return_path,
-                            reply_to,
-                            HEADERS,
-                            subject,
-                        )
-                    else:
-                        self._log.warning("Couldn't find the original server")
+                self._process_message(ID)
             self._remove_processed_messages(IDS)
             try:
                 self.IMAP.close()
@@ -946,8 +919,8 @@ class update_spam_filter:
             self._log.info("Disconnecting from the IMAP server.")
             self.IMAP.logout()
             self.IMAP.close()
-        except:
-            self._log.error("Error closing connection")
+        except imaplib.IMAP4.error as e:
+            self._log.error("Error closing connection. %s" % e)
 
         endtime = time.time()
         elapsedtimes = endtime - starttime

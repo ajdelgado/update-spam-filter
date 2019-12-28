@@ -3,12 +3,12 @@
 Based on an IMAP folder with spam messages. It creates mail filters for postfix
 to mark as spam future messages.
 ## Requirements
-- mysql.connector
+- mysql-connector-python
 ## Installation
 1. Get pip:
 ```bash
 apt install python3-pip # Ubuntu/Debian
-yum install python34-setuptools # CentOS
+yum install python34-setuptools # CentOS/Red Hat
 wget -O https://bootstrap.pypa.io/get-pip.py |sudo python3 - # But this might mess with a pip installed with your system package manager
 ```
 2. Install requirements:

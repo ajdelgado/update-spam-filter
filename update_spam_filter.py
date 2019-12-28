@@ -653,7 +653,7 @@ class update_spam_filter:
             help="Minimum number of words in a subject to be banned.",
         )
         args = parser.parse_args()
-        config = vars(args)
+        self.config = vars(args)
         if "configfile" in self.config and self.config["configfile"] is not None:
             configfile = json.load(open(self.config["configfile"], "r"))
             config = {**config, **configfile}

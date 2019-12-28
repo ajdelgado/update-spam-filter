@@ -919,7 +919,6 @@ class update_spam_filter:
         try:
             self._log.info("Disconnecting from the IMAP server.")
             self.IMAP.logout()
-            self.IMAP.close()
         except imaplib.IMAP4.error as e:
             self._log.error("Error closing connection. %s" % e)
 

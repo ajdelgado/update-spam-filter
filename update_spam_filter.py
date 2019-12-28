@@ -656,7 +656,7 @@ class update_spam_filter:
         self.config = vars(args)
         if "configfile" in self.config and self.config["configfile"] is not None:
             configfile = json.load(open(self.config["configfile"], "r"))
-            config = {**config, **configfile}
+            self.config = {**self.config, **configfile}
 
         if (
             "imappasswordfile" in self.config

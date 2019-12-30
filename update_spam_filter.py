@@ -808,12 +808,15 @@ class update_spam_filter:
         print(msg.keys())
         msg_id = msg.get("Message-ID", "").replace("<", "").replace(">", "")
         return_pathS = self.get_emails_from_text(msg.get("Return-Path", ""))
+        return_path = ""
         for return_path in return_pathS:
             self._log.info("Located message return path as %s" % return_path)
         reply_toS = self.get_emails_from_text(msg.get("Reply-To", ""))
+        reply_to = ""
         for reply_to in reply_toS:
             self._log.info("Located message reply to as %s" % reply_to)
         FROMS = self.get_emails_from_text(msg.get("From", ""))
+        FROM = ""
         for FROM in FROMS:
             self._log.info("Located message sender as %s" % FROM)
         subject = self._get_subject(msg)

@@ -806,7 +806,7 @@ class update_spam_filter:
         HEADERS = DATA[0][1].decode("utf-8")
         msg = email.message_from_string(HEADERS)
         print(msg.keys())
-        msg_id = msg["Message-ID"].replace("<", "").replace(">", "")
+        msg_id = msg.get("Message-ID", "").replace("<", "").replace(">", "")
         return_pathS = self.get_emails_from_text(msg.get("Return-Path", ""))
         for return_path in return_pathS:
             self._log.info("Located message return path as %s" % return_path)

@@ -841,7 +841,7 @@ class update_spam_filter:
 
     def __init__(self):
         self.config = dict()
-        count_sent_warnings = 0
+        self.count_sent_warnings = 0
         starttime = time.time()
         self._log = logging.getLogger()
         self._log.setLevel(logging.getLevelName("DEBUG"))
@@ -923,13 +923,13 @@ class update_spam_filter:
 
         endtime = time.time()
         elapsedtimes = endtime - starttime
-        self._log.info("%s warnings were sent." % count_sent_warnings)
+        self._log.info("%s warnings were sent." % self.count_sent_warnings)
         message = """From: %s\r\nTo: %s\r\nSubject: Spam notifications stats\r\n\r\n
         %s spam warnings were sent by
         update-spam-filter in %s seconds.""" % (
             self.config["sender"],
             self.config["sender"],
-            count_sent_warnings,
+            self.count_sent_warnings,
             elapsedtimes,
         )
         server = smtplib.SMTP("localhost")

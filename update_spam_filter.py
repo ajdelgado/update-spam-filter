@@ -207,7 +207,7 @@ class update_spam_filter:
         self, msg_id, original_mta, return_path, reply_to, HEADERS, subject
     ):
         mta_id, RPID, RTID = self.add_filters_db(
-            self, msg_id, original_mta, return_path, reply_to, subject
+            msg_id, original_mta, return_path, reply_to, subject
         )
         result = True
         if not mta_id or not RPID or not RTID:

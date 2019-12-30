@@ -804,7 +804,7 @@ class update_spam_filter:
             return False
         self._log.info("message flagged as junk mail, processing")
         HEADERS = DATA[0][1].decode("utf-8")
-        msg = email.message_from_string(DATA[0][1])
+        msg = email.message_from_string(HEADERS)
         msg_id = msg["Message-Id"].replace("<", "").replace(">", "")
         return_pathS = self.get_emails_from_text(msg.get("Return-Path", ""))
         for return_path in return_pathS:

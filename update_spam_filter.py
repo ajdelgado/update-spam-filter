@@ -243,8 +243,7 @@ class update_spam_filter:
                 msgid = self.escape_regexp_symbols(ROW[1])
                 server = self.escape_regexp_symbols(ROW[0])
                 OUTPUT += """#From message id %s
-    /^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received
-    from server %s rule set by message id %s\n""" % (
+/^Received.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam received from server %s rule set by message id %s\n""" % (
                     msgid,
                     server,
                     server,
@@ -263,16 +262,14 @@ class update_spam_filter:
                 msgid = self.escape_regexp_symbols(ROW[1])
                 self.config["sender"] = self.escape_regexp_symbols(ROW[0])
                 OUTPUT += """#From message id %s
-    /^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return
-    path spamming %s rule set by message id %s\n""" % (
+/^Return-Path.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam return path spamming %s rule set by message id %s\n""" % (
                     msgid,
                     self.config["sender"],
                     self.config["sender"],
                     msgid,
                 )
                 OUTPUT += """#From message id %s
-    /^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply
-    to spamming %s rule set by message id %s\n""" % (
+/^Reply-To.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n""" % (
                     msgid,
                     self.config["sender"],
                     self.config["sender"],
@@ -291,7 +288,7 @@ class update_spam_filter:
                 msgid = self.escape_regexp_symbols(ROW[1])
                 subject = self.escape_regexp_symbols(ROW[0])
                 OUTPUT += """#From message id %s"
-    /^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n""" % (
+/^Subject.*%s.*/ PREPEND X-Postfix-spam-filter: Marked as spam reply to spamming %s rule set by message id %s\n""" % (
                     msgid,
                     subject,
                     subject,

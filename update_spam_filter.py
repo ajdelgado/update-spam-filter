@@ -218,8 +218,7 @@ class update_spam_filter:
 
     def add_filter_postfix(self):
         """Add filters to the postfix configuration file"""
-        OUTPUT = """#Created at %s automatically from
-    %s\n""" % (
+        OUTPUT = """#Created at %s automatically from %s\n""" % (
             time.strftime("%Y-%m%d %H:%M:%S"),
             sys.argv[0],
         )

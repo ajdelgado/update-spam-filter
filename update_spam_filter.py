@@ -352,7 +352,8 @@ class update_spam_filter:
             user=self.config["dbuser"],
             passwd=self.config["dbpass"],
             db=self.config["dbname"],
-            charset="utf8",
+            auth_plugin='mysql_native_password',
+            charset='utf8mb4',
             use_unicode=True,
         )
         cursor = conn.cursor(buffered=True)
@@ -484,7 +485,8 @@ class update_spam_filter:
             user=self.config["dbuser"],
             passwd=self.config["dbpass"],
             db=self.config["dbname"],
-            charset="utf8",
+            auth_plugin='mysql_native_password',
+            charset='utf8mb4',
             use_unicode=True,
         )
         cursor = conn.cursor(buffered=True)

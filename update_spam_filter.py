@@ -94,6 +94,8 @@ class update_spam_filter:
         """Obtain emails from a text"""
         if type(TEXT) == email.header.Header:
             TEXT = TEXT.__str__()
+        id type(TEXT) == bytes:
+            TEXT = TEXT.decode('utf-8')
         RES = re.findall(
             r"<?([a-zA-Z0-9\.\-]*@[a-zA-Z0-9\.\-]{2,}" r"\.[a-zA-Z0-9\.\-_]{2,})>?",
             TEXT,

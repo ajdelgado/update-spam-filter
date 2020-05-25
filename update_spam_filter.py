@@ -227,8 +227,9 @@ class update_spam_filter:
             user=self.config["dbuser"],
             passwd=self.config["dbpass"],
             db=self.config["dbname"],
-            charset="utf8",
             use_unicode=True,
+            auth_plugin='mysql_native_password',
+            charset='utf8mb4'
         )
         cursor = conn.cursor()
         self._log.info("Searching for banned server...")

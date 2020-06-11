@@ -279,7 +279,18 @@ class update_spam_filter:
                 )
         end = time.time()
         self._log.info("Took %s seconds." % (end - start))
-        time.sleep(2)
+        self._log.info('Reconnecting to database...')
+        conn.close()
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            use_unicode=True,
+            auth_plugin='mysql_native_password',
+            charset='utf8mb4'
+        )
+        cursor = conn.cursor()
         self._log.info("Searching for banned subjects...")
         start = time.time()
         cursor.execute('SELECT subject, frommsgid FROM bannedsubjects WHERE count>1')

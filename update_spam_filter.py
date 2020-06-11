@@ -279,6 +279,7 @@ class update_spam_filter:
                 )
         end = time.time()
         self._log.info("Took %s seconds." % (end - start))
+        time.sleep(2)
         self._log.info("Searching for banned subjects...")
         start = time.time()
         cursor.execute('SELECT subject, frommsgid FROM bannedsubjects WHERE count>1')

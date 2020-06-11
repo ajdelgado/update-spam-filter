@@ -429,14 +429,14 @@ class update_spam_filter:
         # Subject ban
         decoded_subject = (
             #subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
-            subject
+            subject.decode("unicode_escape")
         )
         self._log.debug("Decoded subject: %s" % decoded_subject)
         if decoded_subject not in self.config["excluded_filters"]:
             if self.number_of_words(decoded_subject) > self.config["subject_min_words"]:
                 self._log.info("Banning subjects like '{}'...".format(decoded_subject))
                 cursor.execute(
-                    "SELECT id, count FROM bannedsubjects " "WHERE subject = %s",
+                    "SELECT id, count FROM bannedsubjects WHERE subject = %s",
                     params=(decoded_subject,),
                 )
                 if cursor.rowcount < 1:

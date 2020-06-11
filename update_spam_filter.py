@@ -428,7 +428,8 @@ class update_spam_filter:
 
         # Subject ban
         decoded_subject = (
-            subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
+            #subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
+            subject
         )
         self._log.debug("Decoded subject: %s" % decoded_subject)
         if decoded_subject not in self.config["excluded_filters"]:

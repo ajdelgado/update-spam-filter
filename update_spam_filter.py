@@ -281,9 +281,7 @@ class update_spam_filter:
         self._log.info("Took %s seconds." % (end - start))
         self._log.info("Searching for banned subjects...")
         start = time.time()
-        cursor.execute(
-            'SELECT subject, frommsgid FROM bannedsubjects WHERE count>1;'
-        )
+        cursor.execute('SELECT subject, frommsgid FROM bannedsubjects WHERE count>1')
         for ROW in cursor.fetchall():
             if ROW[0] != "":
                 msgid = self.escape_regexp_symbols(ROW[1])

@@ -926,7 +926,10 @@ class update_spam_filter:
                 self._log.info(
                     "Getting headers of message %s (%s/%s)" % (ID, count, totalmessages)
                 )
-                self._process_message(ID)
+                try:
+                    self._process_message(ID)
+                except:
+                    self._log.error("Error processing message with ID '%s'." % ID)
             self._remove_processed_messages(IDS)
             try:
                 self.IMAP.close()

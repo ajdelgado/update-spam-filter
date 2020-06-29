@@ -73,21 +73,13 @@ class update_spam_filter:
             return False
 
     def get_original_mta(self, message):
-        """Find the mail transport agent that initiated the transaction"""
-        RES = re.finditer(
-            r"Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ", self.newdata
-        )
-        original_mta = ""
-        for mta in RES:
-            if not self.is_excluded_mta(mta.group(1), self.config):
-                original_mta = mta.group(1)
-        return original_mta
-
-    def get_original_mta_2(self, message):
         last_mta = ""
         for k, v in message.items():
             if k == "Received":
-                last_mta = v.split(" ")[1]
+                array_value = v.split(" ")
+                last_mta = array_value[1]
+                if last_mta == 'unknown':
+                    last_mta = array_value[2].replace('(','').replace(')','')
         return last_mta
 
     def get_emails_from_text(self, TEXT):
@@ -837,7 +829,7 @@ class update_spam_filter:
             self._log.info("Located message sender as %s" % FROM)
         subject = self._get_subject(msg)
 
-        original_mta = self.get_original_mta_2(msg)
+        original_mta = self.get_original_mta(msg)
         if original_mta != "":
             self._log.info("Located the original server as %s" % original_mta)
 

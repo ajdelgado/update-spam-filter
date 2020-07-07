@@ -74,21 +74,13 @@ class update_spam_filter:
             return False
 
     def get_original_mta(self, message):
-        """Find the mail transport agent that initiated the transaction"""
-        RES = re.finditer(
-            r"Received: from ([a-zA-Z0-9\.\-_+]*\.[a-zA-Z]{2,}) ", self.newdata
-        )
-        original_mta = ""
-        for mta in RES:
-            if not self.is_excluded_mta(mta.group(1), self.config):
-                original_mta = mta.group(1)
-        return original_mta
-
-    def get_original_mta_2(self, message):
         last_mta = ""
         for k, v in message.items():
             if k == "Received":
-                last_mta = v.split(" ")[1]
+                array_value = v.split(" ")
+                last_mta = array_value[1]
+                if last_mta == 'unknown':
+                    last_mta = array_value[2].replace('(','').replace(')','')
         return last_mta
 
     def get_emails_from_text(self, TEXT):
@@ -280,12 +272,21 @@ class update_spam_filter:
                 )
         end = time.time()
         self._log.info("Took %s seconds." % (end - start))
+        self._log.info('Reconnecting to database...')
+        conn.close()
+        conn = mysql.connector.connect(
+            host=self.config["dbserver"],
+            user=self.config["dbuser"],
+            passwd=self.config["dbpass"],
+            db=self.config["dbname"],
+            use_unicode=True,
+            auth_plugin='mysql_native_password',
+            charset='utf8mb4'
+        )
+        cursor = conn.cursor()
         self._log.info("Searching for banned subjects...")
         start = time.time()
-        cursor.execute(
-            """SELECT subject, frommsgid
-                    FROM bannedsubjects WHERE count>1;"""
-        )
+        cursor.execute('SELECT subject, frommsgid FROM bannedsubjects WHERE count>1')
         for ROW in cursor.fetchall():
             if ROW[0] != "":
                 msgid = self.escape_regexp_symbols(ROW[1])
@@ -429,14 +430,15 @@ class update_spam_filter:
 
         # Subject ban
         decoded_subject = (
-            subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
+            #subject.decode("unicode_escape").encode("iso8859-1").decode("utf8")
+            subject.decode("unicode_escape")
         )
         self._log.debug("Decoded subject: %s" % decoded_subject)
         if decoded_subject not in self.config["excluded_filters"]:
             if self.number_of_words(decoded_subject) > self.config["subject_min_words"]:
                 self._log.info("Banning subjects like '{}'...".format(decoded_subject))
                 cursor.execute(
-                    "SELECT id, count FROM bannedsubjects " "WHERE subject = %s",
+                    "SELECT id, count FROM bannedsubjects WHERE subject = %s",
                     params=(decoded_subject,),
                 )
                 if cursor.rowcount < 1:
@@ -828,7 +830,7 @@ class update_spam_filter:
             self._log.info("Located message sender as %s" % FROM)
         subject = self._get_subject(msg)
 
-        original_mta = self.get_original_mta_2(msg)
+        original_mta = self.get_original_mta(msg)
         if original_mta != "":
             self._log.info("Located the original server as %s" % original_mta)
 
@@ -917,7 +919,10 @@ class update_spam_filter:
                 self._log.info(
                     "Getting headers of message %s (%s/%s)" % (ID, count, totalmessages)
                 )
-                self._process_message(ID)
+                try:
+                    self._process_message(ID)
+                except:
+                    self._log.error("Error processing message with ID '%s'." % ID)
             self._remove_processed_messages(IDS)
             try:
                 self.IMAP.close()

@@ -59,6 +59,7 @@ class update_spam_filter:
         for emta in self.config["excluded_mtas"]:
             if re.search(emta, mta) is not None:
                 return True
+        self._log.debug("M.T.A. '%s' is not in the excluded MTAs" % mta)
         return False
 
     def is_junk(self, message):

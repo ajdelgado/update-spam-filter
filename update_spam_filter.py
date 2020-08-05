@@ -80,7 +80,7 @@ class update_spam_filter:
                 array_value = v.split(" ")
                 last_mta = array_value[1]
                 if last_mta == 'unknown':
-                    last_mta = array_value[2].replace('(','').replace(')','')
+                    last_mta = array_value[2].replace('(HELO ','').replace('(','').replace(')','')
         return last_mta
 
     def get_emails_from_text(self, TEXT):

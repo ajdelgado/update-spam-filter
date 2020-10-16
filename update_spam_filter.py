@@ -77,7 +77,7 @@ class update_spam_filter:
         last_mta = ""
         for k, v in message.items():
             if k == "Received":
-                array_value = v.split(" ")
+                array_value = v.replace("_", "").split(" ")
                 last_mta = array_value[1]
                 if last_mta == 'unknown':
                     last_mta = array_value[2].replace('(HELO ','').replace('(','').replace(')','')

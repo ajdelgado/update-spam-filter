@@ -881,7 +881,10 @@ class update_spam_filter:
         streamhandler.setLevel(logging.getLevelName(self.config.get("debug", 'INFO')))
         self._log.addHandler(streamhandler)
 
-        if self.config.get('logfile', '') != '':
+        logfile = self.config.get('logfile', '')
+        if  logfile != '':
+            if not os.path.exist(os.path.dirname(logfile)):
+                os.path.mkdir(os.path.dirname(logfile))
             filehandler = logging.RotatingFileHandler(self.config['logfile'], maxBytes=102400000)
             # create formatter
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

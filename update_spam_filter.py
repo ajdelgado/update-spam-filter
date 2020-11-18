@@ -365,7 +365,7 @@ class update_spam_filter:
         cursor = conn.cursor(buffered=True)
 
         # Server ban
-        if is_excluded_mta(original_mta):
+        if self.is_excluded_mta(original_mta):
             self._log.info('Not bannig an excluded MTA.')
         else:
             self._log.info("Banning MTA %s..." % original_mta)

@@ -882,7 +882,7 @@ class update_spam_filter:
         self._log.addHandler(streamhandler)
 
         if self.config.get('logfile', '') != '':
-            filehandler = logging.RotatingFileHandler(self.config['logfile'])
+            filehandler = logging.RotatingFileHandler(self.config['logfile'], maxBytes=102400000)
             # create formatter
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             filehandler.setFormatter(formatter)

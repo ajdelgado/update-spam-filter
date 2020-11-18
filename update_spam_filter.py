@@ -883,7 +883,7 @@ class update_spam_filter:
 
         logfile = self.config.get('logfile', '')
         if  logfile != '':
-            if not os.path.exist(os.path.dirname(logfile)):
+            if not os.path.exists(os.path.dirname(logfile)):
                 os.path.mkdir(os.path.dirname(logfile))
             filehandler = logging.RotatingFileHandler(self.config['logfile'], maxBytes=102400000)
             # create formatter

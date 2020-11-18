@@ -801,7 +801,8 @@ class update_spam_filter:
         self._log.info("Located message subject as %s" % subject)
         return subject
 
-    def _process_message(self, ID):
+    def _process_message(self, stringID):
+        ID = int(stringID)
         try:
             STATUS, DATA = self.IMAP.fetch(ID, "(FLAGS BODY[HEADER])")
         except imaplib.IMAP4.error as e:

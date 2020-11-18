@@ -866,11 +866,8 @@ class update_spam_filter:
 
         self._get_config()
 
-        if "debug" in self.config:
-            self._log.setLevel(logging.getLevelName(self.config["debug"]))
-        else:
-            self._log.setLevel(logging.getLevelName("INFO"))
-
+        self._log.setLevel(logging.getLevelName(self.config.get("debug", 'INFO')))
+        
         sysloghandler = SysLogHandler()
         sysloghandler.setLevel(logging.getLevelName("DEBUG"))
         self._log.addHandler(sysloghandler)

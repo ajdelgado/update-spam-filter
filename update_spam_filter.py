@@ -12,6 +12,7 @@
 # -
 #
 import sys
+import os
 import time
 import re
 import imaplib
@@ -658,6 +659,12 @@ class update_spam_filter:
             default=2,
             help="Minimum number of words in a subject to be banned.",
         )
+        parser.add_argument(
+            '--logfile', '-l',
+            dest="logfile",
+            default="%s/log/update_spam_filter.log" % os.environ.get('HOME', ''),
+            help='File to write log information.'
+        )
         args = parser.parse_args()
         self.config = vars(args)
         if "configfile" in self.config and self.config["configfile"] is not None:
@@ -873,6 +880,13 @@ class update_spam_filter:
         streamhandler = logging.StreamHandler(sys.stdout)
         streamhandler.setLevel(logging.getLevelName(self.config.get("debug", 'INFO')))
         self._log.addHandler(streamhandler)
+
+        if self.config.get('logfile', '') != '':
+            filehandler = logging.RotatingFileHandler(self.config['logfile'])
+            # create formatter
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            filehandler.setFormatter(formatter)
+            self._log.addHandler(filehandler)
 
         self._get_imap_connection()
 

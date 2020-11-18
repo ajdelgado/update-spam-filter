@@ -861,7 +861,7 @@ class update_spam_filter:
         self.config = dict()
         self.count_sent_warnings = 0
         starttime = time.time()
-        self._log = logging.getLogger()
+        self._log = logging.getLogger("update_spam_filter")
         self._log.setLevel(logging.DEBUG)
 
         self._get_config()

@@ -367,7 +367,7 @@ class update_spam_filter:
         # Server ban
         self._log.info("Banning MTA %s..." % original_mta)
         cursor.execute(
-            "SELECT id FROM bannedservers WHERE server = %s", params=(original_mta,)
+            "SELECT id, banned FROM bannedservers WHERE server = %s", params=(original_mta,)
         )
         if cursor.rowcount < 1:
             cursor.execute(
@@ -376,13 +376,17 @@ class update_spam_filter:
             )
             mta_id = cursor.lastrowid
         else:
-            cursor.execute(
-                "UPDATE bannedservers SET banned = 1 " "WHERE server = %s",
-                params=(original_mta,),
-            )
-            self._log.info(
-                "Mail transport agent already in the database, banning it again."
-            )
+            for id, banned in cursor:
+                if banned > -1:
+                    cursor.execute(
+                        "UPDATE bannedservers SET banned = 1 " "WHERE server = %s",
+                        params=(original_mta,),
+                    )
+                    self._log.info(
+                        "Mail transport agent already in the database, banning it again."
+                    )
+                else:
+                    self._log.info("Mail transport marked to not be banned anymore (banned=-1). Ignoring.")
             mta_id = True
 
         # Senders ban

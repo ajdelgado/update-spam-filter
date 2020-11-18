@@ -862,18 +862,16 @@ class update_spam_filter:
         self.count_sent_warnings = 0
         starttime = time.time()
         self._log = logging.getLogger()
-        self._log.setLevel(logging.getLevelName("DEBUG"))
+        self._log.setLevel(logging.DEBUG)
 
         self._get_config()
 
-        # self._log.setLevel(logging.getLevelName(self.config.get("debug", 'INFO')))
-
         sysloghandler = SysLogHandler()
-        sysloghandler.setLevel(logging.getLevelName("DEBUG"))
+        sysloghandler.setLevel(logging.DEBUG)
         self._log.addHandler(sysloghandler)
 
         streamhandler = logging.StreamHandler(sys.stdout)
-        streamhandler.setLevel(logging.getLevelName("DEBUG"))
+        streamhandler.setLevel(logging.getLevelName(self.config.get("debug", 'INFO')))
         self._log.addHandler(streamhandler)
 
         self._get_imap_connection()

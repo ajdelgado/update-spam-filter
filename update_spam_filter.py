@@ -784,7 +784,10 @@ class update_spam_filter:
         for DECsubject in DECsubjectS:
             PARTIALsubject, ENCODING = DECsubject
             if ENCODING is None:
-                subject = "%s %s" % (subject, PARTIALsubject)
+                if subject != "":
+                    subject = "%s %s" % (subject, PARTIALsubject)
+                else:
+                    subject = PARTIALsubject
             elif ENCODING == 'unknown-8bit':
                 subject = "%s %s" % (
                     subject,

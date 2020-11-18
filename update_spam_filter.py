@@ -77,6 +77,7 @@ class update_spam_filter:
         last_mta = ""
         for k, v in message.items():
             if k == "Received":
+                self._log.info('Received by: %s' % v)
                 array_value = v.split(" ")
                 last_mta = array_value[1]
                 if last_mta == 'unknown':

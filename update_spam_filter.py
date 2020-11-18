@@ -807,7 +807,7 @@ class update_spam_filter:
         except imaplib.IMAP4.error as e:
             self._log.error("Error fetching messages headers. %s" % e)
         self._log.info("Received. Status: %s" % STATUS)
-        self._log.debug("Data %s" % json.dumps(DATA, indent=2))
+        self._log.debug("Data %s" % DATA)
         if STATUS == "NO":
             self._log.error(
                 "Error fetching message headers, servers " "reponse '%s'" % DATA

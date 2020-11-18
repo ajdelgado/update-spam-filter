@@ -864,6 +864,13 @@ class update_spam_filter:
         self._log = logging.getLogger()
         self._log.setLevel(logging.getLevelName("DEBUG"))
 
+        self._get_config()
+
+        if "debug" in self.config:
+            self._log.setLevel(logging.getLevelName(self.config["debug"]))
+        else:
+            self._log.setLevel(logging.getLevelName("INFO"))
+
         sysloghandler = SysLogHandler()
         sysloghandler.setLevel(logging.getLevelName("DEBUG"))
         self._log.addHandler(sysloghandler)
@@ -871,13 +878,6 @@ class update_spam_filter:
         streamhandler = logging.StreamHandler(sys.stdout)
         streamhandler.setLevel(logging.getLevelName("DEBUG"))
         self._log.addHandler(streamhandler)
-
-        self._get_config()
-
-        if "debug" in self.config:
-            self._log.setLevel(logging.getLevelName(self.config["debug"]))
-        else:
-            self._log.setLevel(logging.getLevelName("INFO"))
 
         self._get_imap_connection()
 

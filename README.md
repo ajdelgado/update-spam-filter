@@ -17,3 +17,4 @@ python3 -m pip install -r requirements.txt
 ```
 3. Create a file with your IMAP password and protect it from other users
 4. Create a file with your MySQL password and protect it from other users
+Main (latest) code in https://repos.susurrando.com/adelgado/update-spam-filter
